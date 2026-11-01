@@ -1,0 +1,31 @@
+# robots.txt para Nexus Web Studio (https://nexuswebstudio.com)
+# Configuración de Rastreo para Motores de Búsqueda y Agentes de Inteligencia Artificial
+
+User-agent: *
+Allow: /
+Allow: /google8065d310f54feb70.html
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /api/
+Disallow: /admin/internal
+Disallow: /_vite/
+
+# Agentes de Inteligencia Artificial & Buscadores Semánticos (Permitir Acceso Explícito)
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+# Enlaces a Sitemaps y Especificación LLM
+Sitemap: https://nexuswebstudio.com/sitemap.xml
+# LLMS Specification: https://nexuswebstudio.com/llms.txt

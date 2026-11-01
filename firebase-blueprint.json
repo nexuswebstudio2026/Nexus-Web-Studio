@@ -1,0 +1,108 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Registered agency user or client profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "client", "team"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "Client software project managed by Nexus Web Studio",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "clientName": { "type": "string" },
+        "clientEmail": { "type": "string" },
+        "budget": { "type": "number" },
+        "currency": { "type": "string", "enum": ["USD", "COP"] },
+        "status": { "type": "string", "enum": ["Cotización", "En Desarrollo", "Revisión", "Completado", "Pausado"] },
+        "progress": { "type": "number" },
+        "category": { "type": "string" },
+        "deadline": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["name", "clientName", "budget", "status"]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "Financial invoice for client work",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "clientName": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string", "enum": ["USD", "COP"] },
+        "status": { "type": "string", "enum": ["Pagada", "Pendiente", "Vencida"] },
+        "issueDate": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["invoiceNumber", "clientName", "amount", "status"]
+    },
+    "Ticket": {
+      "title": "Ticket",
+      "description": "Support or service ticket from client",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "clientName": { "type": "string" },
+        "priority": { "type": "string", "enum": ["Baja", "Media", "Alta", "Urgente"] },
+        "status": { "type": "string", "enum": ["Abierto", "En Proceso", "Resuelto", "Cerrado"] },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["title", "clientName", "priority", "status"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Internal project execution task",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "projectId": { "type": "string" },
+        "assignedTo": { "type": "string" },
+        "priority": { "type": "string", "enum": ["Baja", "Media", "Alta"] },
+        "status": { "type": "string", "enum": ["Pendiente", "En Curso", "Completado"] },
+        "dueDate": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["title", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profile collection"
+    },
+    "/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/Project" },
+      "description": "Agency projects collection"
+    },
+    "/invoices/{invoiceId}": {
+      "schema": { "$ref": "#/entities/Invoice" },
+      "description": "Agency billing invoices collection"
+    },
+    "/tickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/Ticket" },
+      "description": "Client support tickets collection"
+    },
+    "/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/Task" },
+      "description": "Project tasks collection"
+    }
+  }
+}

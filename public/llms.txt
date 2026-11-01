@@ -1,0 +1,34 @@
+# Nexus Web Studio
+
+> Agencia & Plataforma Ecosistema de Ingeniería de Software Full-Stack (Web & Móvil)
+
+## Descripción General
+Nexus Web Studio es una empresa especializada en el diseño, desarrollo, despliegue y mantenimiento de aplicaciones web modernas, aplicaciones móviles nativas/híbridas (iOS & Android), arquitecturas API REST/GraphQL y soluciones cloud seguras.
+
+## Servicios Principales
+- **Desarrollo Web Full-Stack**: Aplicaciones React 19, TypeScript, Tailwind CSS y Node.js Express.
+- **Desarrollo Móvil**: Aplicaciones móviles multiplataforma en React Native / Expo y Kotlin.
+- **Bases de Datos & Cloud**: Integración con PostgreSQL (Drizzle ORM) y Google Firebase Firestore.
+- **QA Automation & Ciberseguridad**: Test suites E2E en Playwright y auditorías pre-lanzamiento de 10 puntos de seguridad (HTTPS, WAF, reCAPTCHA v3, 2FA, backups off-site).
+- **Gestión de Proyectos & Portales**: Cotizador en tiempo real, sistema de tickets de soporte, portal de clientes y emisión de facturas.
+
+## Módulos y Capacidades del Ecosistema
+- `/`: Página principal interactiva con cotizador de presupuestos en tiempo real.
+- `/admin`: Panel de control administrativo con RBAC (Control de Acceso Basado en Roles).
+- `/portal`: Portal de clientes para seguimiento de hitos, revisión de entregables y facturación.
+- `/webdev`: Tablero Kanban de sprints de ingeniería web, esquemas de BD y endpoints de API REST.
+- `/mobile`: Suite de desarrollo móvil con simulador de dispositivos y compilación APK/IPA.
+- `/qa-devops`: Consola de pruebas automatizadas y auditoría de seguridad pre-lanzamiento de 10 puntos.
+- `/support`: Sistema Helpdesk con tickets de soporte categorizados y priorizados.
+- `/accounting`: Gestión financiera, emisión de facturas fiscales y cálculo de ingresos acumulados.
+
+## Especificaciones Técnicas
+- **Frontend**: React 19, Vite, Tailwind CSS v4, Lucide Icons.
+- **Backend**: Express API en Node.js runtime.
+- **Base de Datos Principal**: Firebase Firestore (Proyecto GCP `nexus-web-studio-94ca8`).
+- **Seguridad**: Autenticación Firebase Auth, Reglas de seguridad Firestore, Google Search Console Verified (`google8065d310f54feb70.html`).
+
+## Contacto & Perfil
+- **Email Corporativo**: nexuswebstudio2026@gmail.com
+- **Google Business Profile**: Verified Agency & Software Studio
+- **Web**: https://nexuswebstudio.com

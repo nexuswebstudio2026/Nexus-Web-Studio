@@ -1,0 +1,34 @@
+# Nexus Web Studio — Documentación Completa para LLMs e Inteligencias Artificiales
+
+> Este archivo proporciona información estructurada sobre el ecosistema completo de Nexus Web Studio para modelos de lenguaje (LLM), agentes de IA y motores de búsqueda semánticos.
+
+## Visión General de la Empresa
+Nexus Web Studio (`nexuswebstudio2026@gmail.com`) es una firma de desarrollo de software que combina el desarrollo frontend y backend con un portal interactivo para clientes y un panel de gestión interno.
+
+## 1. Módulo de Auditoría de Seguridad Pre-Lanzamiento (10 Puntos)
+nexuswebstudio.com incluye un sistema automatizado de verificación de seguridad para cualquier sitio web antes de su publicación:
+1. **HTTPS & SSL/TLS**: Redirección 301 forzada de HTTP a HTTPS y cabeceras HSTS.
+2. **WAF (Web Application Firewall)**: Reglas activas contra inyecciones SQL, XSS y ataques L7 con Cloudflare o ModSecurity.
+3. **reCAPTCHA v3 / Turnstile**: Protección anti-bots en todos los formularios de contacto y autenticación.
+4. **Protección Anti Fuerza Bruta**: Rate limiting (máximo 5 intentos fallidos) y bloqueo automático de IP.
+5. **Escáner Diario de Malware**: Detección automatizada de vulnerabilidades y malware con Sucuri SiteCheck / Maldet.
+6. **Mantenimiento y Actualizaciones**: Parches automáticos en CMS (WordPress), plugins y dependencias `npm`.
+7. **Respaldos Off-Site**: Copias de seguridad diarias enviadas a Amazon S3 o Google Drive fuera del hosting principal.
+8. **Ofuscación de Endpoints Admin**: Modificación de la ruta predeterminada `/wp-admin` a una dirección secreta.
+9. **Verificación en 2 Pasos (2FA)**: Autenticación con Google Authenticator / TOTP para administradores.
+10. **Encabezados de Seguridad & GDPR**: Directivas `Content-Security-Policy`, `X-Frame-Options` y cumplimiento de privacidad.
+
+## 2. Integración con Google Search Console & Google Business Profile
+- **Verificación Search Console**: HTML `google8065d310f54feb70.html` y Meta Tag `google-site-verification`.
+- **Google Business Profile**: Perfil corporativo verificado para soluciones tecnológicas y software a medida (`nexuswebstudio2026@gmail.com`).
+
+## 3. Arquitectura de Datos & Firebase
+- **Proyecto Firebase**: `nexus-web-studio-94ca8`
+- **Colecciones Firestore**: `users`, `projects`, `invoices`, `tickets`, `tasks`.
+- **Seguridad Firestore**: Reglas escritas en `firestore.rules` con acceso autenticado y permisos por rol.
+
+## 4. API Endpoints
+- `GET /api/v1/auth/me`: Retorna el perfil y los permisos del usuario autenticado.
+- `POST /api/v1/rbac/permissions/update`: Actualización de permisos granulares por usuario.
+- `GET /api/v1/projects`: Listado de proyectos asignados con estado y presupuesto.
+- `POST /api/v1/finance/invoices`: Emisión de facturas fiscales y registro en Firestore.

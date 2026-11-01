@@ -1,0 +1,6 @@
+{
+  "name": "Nexus Web & Mobile Studio - Agency & RBAC Project Management",
+  "description": "Sitio web elegante y moderno para empresa de desarrollo web y móvil full-stack con sistema de gestión de proyectos, roles por departamento y permisos granulares.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
