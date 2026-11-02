@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LogIn, Menu, X } from 'lucide-react';
+import { LogIn, LogOut, LayoutDashboard, Menu, X } from 'lucide-react';
 import { UserAccount } from '../types';
 
 const OFFICIAL_NEXUS_LOGO = '/assets/aistudio/768420689_122100971391434882_47020785483964272_n__1__df72d03a.jpg';
@@ -14,6 +14,8 @@ interface HeaderBarProps {
   allUsers: UserAccount[];
   onOpenPermissionMatrix: () => void;
   onOpenLoginModal: () => void;
+  isLoggedIn?: boolean;
+  onLogout?: () => void;
   onNavigateRoute?: (view: 'agency_site' | 'management_system' | 'prompt_generator', sec?: 'inicio' | 'proyectos' | 'nosotros' | 'contactanos', isIngresar?: boolean) => void;
 }
 
@@ -23,6 +25,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   publicSection,
   setPublicSection,
   onOpenLoginModal,
+  isLoggedIn,
+  onLogout,
   onNavigateRoute,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -125,13 +129,46 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               )}
             </button>
 
-            <button
-              onClick={handleIngresarClick}
-              className="px-4 sm:px-5 py-2 text-xs font-bold rounded-xl transition-all whitespace-nowrap bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white shadow-md shadow-cyan-600/25 flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              <span>Ingresar</span>
-            </button>
+            {isLoggedIn ? (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setCurrentView('management_system');
+                    if (onNavigateRoute) onNavigateRoute('management_system');
+                  }}
+                  className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all whitespace-nowrap flex items-center gap-2 ${
+                    currentView === 'management_system'
+                      ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                      : 'bg-slate-900 border border-slate-700 text-purple-300 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <span>Mi Panel</span>
+                </button>
+
+                {onLogout && (
+                  <button
+                    onClick={() => {
+                      onLogout();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="px-3 py-2 text-xs font-bold rounded-xl bg-rose-950/80 hover:bg-rose-900 border border-rose-800/60 text-rose-200 transition-all flex items-center gap-1.5 shadow-sm"
+                    title="Cerrar sesión activa"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Salir</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={handleIngresarClick}
+                className="px-4 sm:px-5 py-2 text-xs font-bold rounded-xl transition-all whitespace-nowrap bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white shadow-md shadow-cyan-600/25 flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Ingresar</span>
+              </button>
+            )}
           </nav>
 
           {/* Mobile Menu Toggle */}
@@ -190,13 +227,42 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             >
               Contáctanos
             </button>
-            <button
-              onClick={handleIngresarClick}
-              className="w-full text-left px-4 py-3 text-sm font-bold rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 text-white flex items-center justify-between"
-            >
-              <span>Ingresar</span>
-              <LogIn className="w-4 h-4" />
-            </button>
+
+            {isLoggedIn ? (
+              <div className="pt-2 space-y-2 border-t border-slate-800">
+                <button
+                  onClick={() => {
+                    setCurrentView('management_system');
+                    if (onNavigateRoute) onNavigateRoute('management_system');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-3 text-sm font-bold rounded-xl bg-purple-600 text-white flex items-center justify-between"
+                >
+                  <span>Mi Panel de Control</span>
+                  <LayoutDashboard className="w-4 h-4" />
+                </button>
+                {onLogout && (
+                  <button
+                    onClick={() => {
+                      onLogout();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-3 text-sm font-bold rounded-xl bg-rose-950/80 border border-rose-800 text-rose-200 flex items-center justify-between"
+                  >
+                    <span>Cerrar Sesión</span>
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={handleIngresarClick}
+                className="w-full text-left px-4 py-3 text-sm font-bold rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 text-white flex items-center justify-between"
+              >
+                <span>Ingresar</span>
+                <LogIn className="w-4 h-4" />
+              </button>
+            )}
           </div>
         )}
 

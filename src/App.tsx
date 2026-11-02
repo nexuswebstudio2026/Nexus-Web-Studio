@@ -43,6 +43,7 @@ import {
   ShieldAlert,
   UserCheck,
   LayoutDashboard,
+  LogOut,
 } from 'lucide-react';
 
 import {
@@ -55,7 +56,33 @@ import { db, handleFirestoreError, OperationType } from './lib/firebase';
 import { seedFirestoreDatabase } from './lib/seedDatabase';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<'agency_site' | 'management_system' | 'prompt_generator'>('agency_site');
+  const [currentUserId, setCurrentUserId] = useState<string>(() => {
+    try {
+      return localStorage.getItem('nexus_logged_in_user_id') || 'usr_admin';
+    } catch {
+      return 'usr_admin';
+    }
+  });
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    try {
+      return Boolean(localStorage.getItem('nexus_logged_in_user_id'));
+    } catch {
+      return false;
+    }
+  });
+
+  const [currentView, setCurrentView] = useState<'agency_site' | 'management_system' | 'prompt_generator'>(() => {
+    try {
+      const savedUserId = localStorage.getItem('nexus_logged_in_user_id');
+      const path = decodeURIComponent(window.location.pathname.toLowerCase());
+      if (path === '/proyectos' || path === '/nosotros' || path === '/contactanos' || path === '/contáctanos') {
+        return 'agency_site';
+      }
+      return savedUserId ? 'management_system' : 'agency_site';
+    } catch {
+      return 'agency_site';
+    }
+  });
   const [publicSection, setPublicSection] = useState<'inicio' | 'proyectos' | 'nosotros' | 'contactanos'>('inicio');
 
   // Automatically seed Firestore database on initial mount
@@ -75,7 +102,6 @@ export default function App() {
       return MOCK_USERS;
     }
   });
-  const [currentUserId, setCurrentUserId] = useState<string>('usr_admin');
 
   // Modals state
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -85,6 +111,8 @@ export default function App() {
   React.useEffect(() => {
     const handlePopState = () => {
       const path = decodeURIComponent(window.location.pathname.toLowerCase());
+      const savedUserId = localStorage.getItem('nexus_logged_in_user_id');
+
       if (path === '/proyectos') {
         setCurrentView('agency_site');
         setPublicSection('proyectos');
@@ -98,13 +126,22 @@ export default function App() {
         setPublicSection('contactanos');
         setIsAuthModalOpen(false);
       } else if (path === '/ingresar') {
-        setIsAuthModalOpen(true);
+        if (savedUserId) {
+          setCurrentView('management_system');
+          setIsAuthModalOpen(false);
+        } else {
+          setIsAuthModalOpen(true);
+        }
       } else if (path === '/sistema' || path === '/admin') {
         setCurrentView('management_system');
         setIsAuthModalOpen(false);
       } else {
-        setCurrentView('agency_site');
-        setPublicSection('inicio');
+        if (savedUserId) {
+          setCurrentView('management_system');
+        } else {
+          setCurrentView('agency_site');
+          setPublicSection('inicio');
+        }
         setIsAuthModalOpen(false);
       }
     };
@@ -288,6 +325,10 @@ export default function App() {
     };
     setUsers((prev) => [...prev, created]);
     setCurrentUserId(created.id);
+    setIsLoggedIn(true);
+    try {
+      localStorage.setItem('nexus_logged_in_user_id', created.id);
+    } catch {}
     setCurrentView('management_system');
     try {
       await setDoc(doc(db, 'users', created.id), created);
@@ -298,13 +339,35 @@ export default function App() {
 
   const handleLoginSuccess = (user: UserAccount) => {
     setCurrentUserId(user.id);
+    setIsLoggedIn(true);
+    try {
+      localStorage.setItem('nexus_logged_in_user_id', user.id);
+    } catch {}
     setActiveModuleOverride(null);
     setCurrentView('management_system');
+    if (window.location.pathname === '/' || window.location.pathname === '/ingresar') {
+      window.history.pushState({}, '', '/sistema');
+    }
+  };
+
+  const handleLogout = () => {
+    try {
+      localStorage.removeItem('nexus_logged_in_user_id');
+    } catch {}
+    setIsLoggedIn(false);
+    setCurrentView('agency_site');
+    setPublicSection('inicio');
+    if (window.location.pathname !== '/') {
+      window.history.pushState({}, '', '/');
+    }
   };
 
   // Switch user handler
   const handleSwitchUser = (userId: string) => {
     setCurrentUserId(userId);
+    try {
+      localStorage.setItem('nexus_logged_in_user_id', userId);
+    } catch {}
     setActiveModuleOverride(null);
   };
 
@@ -416,6 +479,8 @@ export default function App() {
           setIsAuthModalOpen(true);
           navigateRoute('agency_site', publicSection, true);
         }}
+        isLoggedIn={isLoggedIn}
+        onLogout={handleLogout}
         onNavigateRoute={navigateRoute}
       />
 
@@ -473,6 +538,14 @@ export default function App() {
                     >
                       <ShieldCheck className="w-3 h-3 text-purple-400" />
                       <span>Ver RBAC ({Object.values(currentUser.permissions).filter(Boolean).length} activas)</span>
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className="text-[10px] text-rose-300 hover:text-rose-100 bg-rose-950/60 hover:bg-rose-900 px-2 py-0.5 rounded border border-rose-800/60 transition-colors flex items-center gap-1 ml-1"
+                      title="Cerrar sesión"
+                    >
+                      <LogOut className="w-3 h-3 text-rose-400" />
+                      <span>Cerrar Sesión</span>
                     </button>
                   </div>
                 </div>

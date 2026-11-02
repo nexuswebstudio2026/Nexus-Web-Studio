@@ -153,31 +153,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {/* LOGIN MODE */}
           {authMode === 'login' && (
             <div className="space-y-4">
-              {/* Quick Admin Access Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  const adminUser = users.find((u) => u.role === 'admin') || users[0];
-                  onLoginSuccess(adminUser);
-                  onClose();
-                }}
-                className="w-full py-2.5 px-4 bg-purple-950/80 hover:bg-purple-900 border border-purple-600/50 text-purple-200 rounded-xl font-bold text-xs flex items-center justify-between transition-all group shadow-md"
-              >
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
-                  <span>Acceso Rápido Administrador (admin)</span>
-                </div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-900/60 text-purple-300">
-                  Super Admin
-                </span>
-              </button>
-
-              <div className="flex items-center gap-2 text-[10px] text-slate-500 uppercase font-mono tracking-wider my-2">
-                <div className="flex-1 h-px bg-slate-800" />
-                <span>O ingresa tus credenciales</span>
-                <div className="flex-1 h-px bg-slate-800" />
-              </div>
-
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 setLoginError('');
@@ -219,7 +194,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     onLoginSuccess(matchedUser);
                     onClose();
                   } else {
-                    setLoginError('Usuario o correo no encontrado. Ingrese "admin" o seleccione acceso rápido.');
+                    setLoginError('Usuario o correo no encontrado. Ingrese sus credenciales o correo.');
                   }
                 }
               }} className="space-y-4">
