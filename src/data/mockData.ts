@@ -160,7 +160,7 @@ export const MOCK_USERS: UserAccount[] = [
   {
     id: 'usr_admin',
     name: 'Administrador General (admin)',
-    email: 'admin@nexusstudio.dev',
+    email: 'nexuswebstudio2026@gmail.com',
     role: 'admin',
     avatar: avatarAdminImg,
     jobTitle: 'Super Administrador del Sistema (CEO)',

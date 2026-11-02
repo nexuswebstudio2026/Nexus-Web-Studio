@@ -178,24 +178,49 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <div className="flex-1 h-px bg-slate-800" />
               </div>
 
-              <form onSubmit={(e) => {
+              <form onSubmit={async (e) => {
                 e.preventDefault();
                 setLoginError('');
                 const inputClean = email.trim().toLowerCase();
-                const matchedUser = users.find((u) =>
-                  u.email.toLowerCase() === inputClean ||
-                  u.name.toLowerCase().includes(inputClean) ||
-                  (inputClean === 'admin' && u.role === 'admin')
-                );
-                if (matchedUser) {
-                  onLoginSuccess(matchedUser);
-                  onClose();
-                } else if (inputClean.includes('admin') || inputClean === '') {
-                  const defaultAdmin = users.find((u) => u.role === 'admin') || users[0];
-                  onLoginSuccess(defaultAdmin);
-                  onClose();
-                } else {
-                  setLoginError('Usuario o correo no encontrado. Ingrese "admin" o seleccione acceso rápido.');
+
+                try {
+                  // Direct Query to Cloud Firestore Database
+                  const { collection, getDocs } = await import('firebase/firestore');
+                  const { db } = await import('../lib/firebase');
+                  const snapshot = await getDocs(collection(db, 'users'));
+                  const firestoreUsers: UserAccount[] = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as UserAccount));
+                  
+                  const allAvailable = firestoreUsers.length > 0 ? firestoreUsers : users;
+
+                  const matchedUser = allAvailable.find((u) =>
+                    u.email.toLowerCase() === inputClean ||
+                    u.name.toLowerCase().includes(inputClean) ||
+                    (inputClean === 'admin' && u.role === 'admin')
+                  );
+
+                  if (matchedUser) {
+                    onLoginSuccess(matchedUser);
+                    onClose();
+                  } else if (inputClean.includes('admin') || inputClean === '') {
+                    const defaultAdmin = allAvailable.find((u) => u.role === 'admin') || users[0];
+                    onLoginSuccess(defaultAdmin);
+                    onClose();
+                  } else {
+                    setLoginError('Usuario o correo no registrado en la base de datos Firestore. Regístrese o use "admin".');
+                  }
+                } catch (err) {
+                  // Fallback to local state if offline
+                  const matchedUser = users.find((u) =>
+                    u.email.toLowerCase() === inputClean ||
+                    u.name.toLowerCase().includes(inputClean) ||
+                    (inputClean === 'admin' && u.role === 'admin')
+                  );
+                  if (matchedUser) {
+                    onLoginSuccess(matchedUser);
+                    onClose();
+                  } else {
+                    setLoginError('Usuario o correo no encontrado. Ingrese "admin" o seleccione acceso rápido.');
+                  }
                 }
               }} className="space-y-4">
                 <div>
