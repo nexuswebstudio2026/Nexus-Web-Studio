@@ -39,8 +39,10 @@ import heroImg from '../assets/images/hero_agency_developer_1793475051788.jpg';
 import fintechImg from '../assets/images/project_thumbnail_fintech_1793475053693.jpg';
 const logoImg = '/assets/aistudio/768420689_122100971391434882_47020785483964272_n__1__df72d03a.jpg';
 import { MOCK_PROJECTS } from '../data/mockData';
+import { Project } from '../types';
 
 interface PublicLandingPageProps {
+  projects?: Project[];
   publicSection: 'inicio' | 'proyectos' | 'nosotros' | 'contactanos';
   onEnterManagementSystem: () => void;
   onOpenPromptGenerator: () => void;
@@ -48,6 +50,7 @@ interface PublicLandingPageProps {
 }
 
 export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
+  projects = [],
   publicSection,
   onEnterManagementSystem,
   onOpenPromptGenerator,
@@ -309,83 +312,88 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
             </button>
           </div>
 
-          {/* Web Projects Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {MOCK_PROJECTS.map((prj, idx) => {
-              const prjImg = idx === 0 ? fintechImg : heroImg;
-              return (
-                <div key={prj.id} className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 hover:border-indigo-500/50 transition-all shadow-xl flex flex-col justify-between">
-                  <div className="space-y-3">
-                    <img
-                      src={prjImg}
-                      alt={prj.name}
-                      className="w-full h-48 object-cover rounded-2xl border border-slate-800"
-                    />
+          {/* Web Projects Grid (Synchronized with Google Cloud Firestore) */}
+          {(() => {
+            const displayList = projects.length > 0 ? projects : MOCK_PROJECTS;
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {displayList.map((prj, idx) => {
+                  const prjImg = idx === 0 ? fintechImg : heroImg;
+                  return (
+                    <div key={prj.id} className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 hover:border-indigo-500/50 transition-all shadow-xl flex flex-col justify-between">
+                      <div className="space-y-3">
+                        <img
+                          src={prjImg}
+                          alt={prj.name}
+                          className="w-full h-48 object-cover rounded-2xl border border-slate-800"
+                        />
 
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-mono text-indigo-400 font-bold">[{prj.code}]</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800 uppercase font-bold">
-                        {prj.type}
-                      </span>
-                    </div>
-
-                    <h3 className="text-base font-bold text-white">{prj.name}</h3>
-
-                    <p className="text-xs text-slate-300 leading-relaxed">
-                      {prj.description || 'Solución de ingeniería web y móvil full-stack con base de datos relacional PostgreSQL y control de acceso por roles.'}
-                    </p>
-
-                    {/* Dates & Percentage Bar */}
-                    <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-2xl space-y-3 mt-3">
-                      <div className="grid grid-cols-2 gap-2 text-xs border-b border-slate-800/80 pb-2.5">
-                        <div className="space-y-0.5">
-                          <span className="text-[10px] text-slate-400 uppercase font-semibold flex items-center gap-1">
-                            <Calendar className="w-3 h-3 text-indigo-400" /> Fecha de Inicio
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-mono text-indigo-400 font-bold">[{prj.code}]</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800 uppercase font-bold">
+                            {prj.type}
                           </span>
-                          <span className="font-mono text-xs text-white font-bold block">{prj.startDate}</span>
                         </div>
 
-                        <div className="space-y-0.5">
-                          <span className="text-[10px] text-slate-400 uppercase font-semibold flex items-center gap-1">
-                            <Calendar className="w-3 h-3 text-purple-400" /> Fecha Final / Entrega
-                          </span>
-                          <span className="font-mono text-xs text-white font-bold block">{prj.deadline}</span>
+                        <h3 className="text-base font-bold text-white">{prj.name}</h3>
+
+                        <p className="text-xs text-slate-300 leading-relaxed">
+                          {prj.description || 'Solución de ingeniería web y móvil full-stack con base de datos relacional PostgreSQL y control de acceso por roles.'}
+                        </p>
+
+                        {/* Dates & Percentage Bar */}
+                        <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-2xl space-y-3 mt-3">
+                          <div className="grid grid-cols-2 gap-2 text-xs border-b border-slate-800/80 pb-2.5">
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] text-slate-400 uppercase font-semibold flex items-center gap-1">
+                                <Calendar className="w-3 h-3 text-indigo-400" /> Fecha de Inicio
+                              </span>
+                              <span className="font-mono text-xs text-white font-bold block">{prj.startDate}</span>
+                            </div>
+
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] text-slate-400 uppercase font-semibold flex items-center gap-1">
+                                <Calendar className="w-3 h-3 text-purple-400" /> Fecha Final / Entrega
+                              </span>
+                              <span className="font-mono text-xs text-white font-bold block">{prj.deadline}</span>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-[11px] font-semibold text-slate-300 flex items-center gap-1">
+                                <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                                Porcentaje Actual del Proyecto
+                              </span>
+                              <span className="font-mono font-extrabold text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">
+                                {prj.progress}%
+                              </span>
+                            </div>
+
+                            <div className="w-full h-3 bg-slate-900 rounded-full overflow-hidden p-0.5 border border-slate-800">
+                              <div
+                                className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 rounded-full transition-all duration-700 shadow-sm"
+                                style={{ width: `${prj.progress}%` }}
+                              />
+                            </div>
+                          </div>
+
                         </div>
                       </div>
 
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-[11px] font-semibold text-slate-300 flex items-center gap-1">
-                            <Activity className="w-3.5 h-3.5 text-emerald-400" />
-                            Porcentaje Actual del Proyecto
+                      <div className="flex flex-wrap gap-1.5 pt-3 border-t border-slate-800/80 text-[10px] font-mono text-slate-400">
+                        {prj.techStack.map((tech, tIdx) => (
+                          <span key={tIdx} className="px-2 py-0.5 bg-slate-950 rounded border border-slate-800">
+                            {tech}
                           </span>
-                          <span className="font-mono font-extrabold text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">
-                            {prj.progress}%
-                          </span>
-                        </div>
-
-                        <div className="w-full h-3 bg-slate-900 rounded-full overflow-hidden p-0.5 border border-slate-800">
-                          <div
-                            className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 rounded-full transition-all duration-700 shadow-sm"
-                            style={{ width: `${prj.progress}%` }}
-                          />
-                        </div>
+                        ))}
                       </div>
-
                     </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-1.5 pt-3 border-t border-slate-800/80 text-[10px] font-mono text-slate-400">
-                    {prj.techStack.map((tech, tIdx) => (
-                      <span key={tIdx} className="px-2 py-0.5 bg-slate-950 rounded border border-slate-800">
-                        {tech}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
 
           {/* CALCULADORA ESTIMADORA DE PRESUPUESTOS EN VIVO */}
           <div className="bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 border border-slate-800 rounded-3xl p-8 space-y-6 shadow-2xl mt-8">

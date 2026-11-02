@@ -14,6 +14,7 @@ import {
   Code,
   DollarSign,
   Sliders,
+  Trash2,
 } from 'lucide-react';
 import { UserAccount, Project, RoleId } from '../../types';
 import { SYSTEM_ROLES } from '../../data/mockData';
@@ -25,6 +26,7 @@ interface AdminModuleProps {
   onOpenPermissions: () => void;
   onUpdateUserRole: (userId: string, role: RoleId) => void;
   onAddProject: (newPrj: Omit<Project, 'id'>) => void;
+  onDeleteProject?: (projectId: string) => void;
 }
 
 export const AdminModule: React.FC<AdminModuleProps> = ({
@@ -34,6 +36,7 @@ export const AdminModule: React.FC<AdminModuleProps> = ({
   onOpenPermissions,
   onUpdateUserRole,
   onAddProject,
+  onDeleteProject,
 }) => {
   const [showAddProjectModal, setShowAddProjectModal] = useState(false);
   const [projectName, setProjectName] = useState('');
@@ -305,9 +308,24 @@ export const AdminModule: React.FC<AdminModuleProps> = ({
             <div key={p.id} className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-mono text-indigo-400 font-bold">[{p.code}]</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 uppercase">
-                  {p.type}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 uppercase">
+                    {p.type}
+                  </span>
+                  {onDeleteProject && (
+                    <button
+                      onClick={() => {
+                        if (confirm(`¿Desea eliminar el proyecto "${p.name}" de Cloud Firestore?`)) {
+                          onDeleteProject(p.id);
+                        }
+                      }}
+                      className="p-1 text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 rounded transition-colors"
+                      title="Eliminar de la base de datos Firestore"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div>

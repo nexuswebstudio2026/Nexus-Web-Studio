@@ -220,38 +220,28 @@ export default function App() {
 
     try {
       unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-        if (!snapshot.empty) {
-          const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as UserAccount));
-          setUsers(list);
-        }
+        const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as UserAccount));
+        setUsers(list);
       }, (err) => console.warn('Firestore subscription notice [users]:', err));
 
       unsubProjects = onSnapshot(collection(db, 'projects'), (snapshot) => {
-        if (!snapshot.empty) {
-          const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Project));
-          setProjects(list);
-        }
+        const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Project));
+        setProjects(list);
       }, (err) => console.warn('Firestore subscription notice [projects]:', err));
 
       unsubInvoices = onSnapshot(collection(db, 'invoices'), (snapshot) => {
-        if (!snapshot.empty) {
-          const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Invoice));
-          setInvoices(list);
-        }
+        const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Invoice));
+        setInvoices(list);
       }, (err) => console.warn('Firestore subscription notice [invoices]:', err));
 
       unsubTickets = onSnapshot(collection(db, 'tickets'), (snapshot) => {
-        if (!snapshot.empty) {
-          const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as SupportTicket));
-          setTickets(list);
-        }
+        const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as SupportTicket));
+        setTickets(list);
       }, (err) => console.warn('Firestore subscription notice [tickets]:', err));
 
       unsubTasks = onSnapshot(collection(db, 'tasks'), (snapshot) => {
-        if (!snapshot.empty) {
-          const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as SprintTask));
-          setTasks(list);
-        }
+        const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as SprintTask));
+        setTasks(list);
       }, (err) => console.warn('Firestore subscription notice [tasks]:', err));
     } catch (e) {
       console.warn('Firestore subscription initialized locally:', e);
@@ -382,6 +372,16 @@ export default function App() {
     }
   };
 
+  const handleDeleteProject = async (projectId: string) => {
+    setProjects((prev) => prev.filter((p) => p.id !== projectId));
+    try {
+      const { deleteDoc, doc } = await import('firebase/firestore');
+      await deleteDoc(doc(db, 'projects', projectId));
+    } catch (err) {
+      console.warn('Firestore delete error for project:', err);
+    }
+  };
+
   const handleAddInvoice = async (newInv: Omit<Invoice, 'id'>) => {
     const inv: Invoice = { ...newInv, id: `inv_${Date.now()}` };
     setInvoices((prev) => [inv, ...prev]);
@@ -490,6 +490,7 @@ export default function App() {
         {/* VIEW 1: Public Agency Landing Showcase */}
         {currentView === 'agency_site' && (
           <PublicLandingPage
+            projects={projects}
             publicSection={publicSection}
             onEnterManagementSystem={() => {
               setCurrentView('management_system');
@@ -608,6 +609,7 @@ export default function App() {
                 onOpenPermissions={() => setIsPermissionModalOpen(true)}
                 onUpdateUserRole={handleUpdateUserRole}
                 onAddProject={handleAddProject}
+                onDeleteProject={handleDeleteProject}
               />
             )}
 
