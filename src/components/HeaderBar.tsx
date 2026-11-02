@@ -14,6 +14,7 @@ interface HeaderBarProps {
   allUsers: UserAccount[];
   onOpenPermissionMatrix: () => void;
   onOpenLoginModal: () => void;
+  onNavigateRoute?: (view: 'agency_site' | 'management_system' | 'prompt_generator', sec?: 'inicio' | 'proyectos' | 'nosotros' | 'contactanos', isIngresar?: boolean) => void;
 }
 
 export const HeaderBar: React.FC<HeaderBarProps> = ({
@@ -22,17 +23,24 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   publicSection,
   setPublicSection,
   onOpenLoginModal,
+  onNavigateRoute,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleNavClick = (section: 'inicio' | 'proyectos' | 'nosotros' | 'contactanos') => {
     setCurrentView('agency_site');
     setPublicSection(section);
+    if (onNavigateRoute) {
+      onNavigateRoute('agency_site', section);
+    }
     setMobileMenuOpen(false);
   };
 
   const handleIngresarClick = () => {
     onOpenLoginModal();
+    if (onNavigateRoute) {
+      onNavigateRoute('agency_site', publicSection, true);
+    }
     setMobileMenuOpen(false);
   };
 

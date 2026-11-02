@@ -91,7 +91,22 @@ export const AdminModule: React.FC<AdminModuleProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={async () => {
+              const { seedFirestoreDatabase } = await import('../../lib/seedDatabase');
+              const res = await seedFirestoreDatabase();
+              if (res.success) {
+                alert(`🔥 ¡Base de Datos Firestore poblada exitosamente con ${res.count} documentos en 5 colecciones! Refresca tu consola de Firebase.`);
+              } else {
+                alert(`Error al poblar Firestore: ${res.error}`);
+              }
+            }}
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs rounded-xl shadow-lg shadow-emerald-600/30 flex items-center gap-2 transition-all font-mono"
+            title="Sincronizar todos los datos iniciales directamente a Google Cloud Firestore"
+          >
+            <span>🔥 Sincronizar Datos a Firestore</span>
+          </button>
           <button
             onClick={onOpenPermissions}
             className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-medium text-xs rounded-xl shadow-lg shadow-purple-600/30 flex items-center gap-2 transition-all"

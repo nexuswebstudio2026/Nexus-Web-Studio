@@ -159,11 +159,11 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
 export const MOCK_USERS: UserAccount[] = [
   {
     id: 'usr_admin',
-    name: 'Dra. Victoria Vance',
-    email: 'victoria.vance@nexusstudio.dev',
+    name: 'Administrador General (admin)',
+    email: 'admin@nexusstudio.dev',
     role: 'admin',
     avatar: avatarAdminImg,
-    jobTitle: 'Chief Executive Officer (CEO)',
+    jobTitle: 'Super Administrador del Sistema (CEO)',
     department: 'Dirección Ejecutiva',
     createdAt: '2025-01-15',
     permissions: {

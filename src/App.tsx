@@ -52,10 +52,20 @@ import {
   doc,
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './lib/firebase';
+import { seedFirestoreDatabase } from './lib/seedDatabase';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<'agency_site' | 'management_system' | 'prompt_generator'>('agency_site');
   const [publicSection, setPublicSection] = useState<'inicio' | 'proyectos' | 'nosotros' | 'contactanos'>('inicio');
+
+  // Automatically seed Firestore database on initial mount
+  React.useEffect(() => {
+    seedFirestoreDatabase().then((res) => {
+      if (res.success) {
+        console.log(`✅ Firestore populated with ${res.count} documents!`);
+      }
+    });
+  }, []);
 
   const [users, setUsers] = useState<UserAccount[]>(() => {
     try {
@@ -70,6 +80,63 @@ export default function App() {
   // Modals state
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
+
+  // Synchronize URL routing on mount & popstate
+  React.useEffect(() => {
+    const handlePopState = () => {
+      const path = decodeURIComponent(window.location.pathname.toLowerCase());
+      if (path === '/proyectos') {
+        setCurrentView('agency_site');
+        setPublicSection('proyectos');
+        setIsAuthModalOpen(false);
+      } else if (path === '/nosotros') {
+        setCurrentView('agency_site');
+        setPublicSection('nosotros');
+        setIsAuthModalOpen(false);
+      } else if (path === '/contactanos' || path === '/contáctanos') {
+        setCurrentView('agency_site');
+        setPublicSection('contactanos');
+        setIsAuthModalOpen(false);
+      } else if (path === '/ingresar') {
+        setIsAuthModalOpen(true);
+      } else if (path === '/sistema' || path === '/admin') {
+        setCurrentView('management_system');
+        setIsAuthModalOpen(false);
+      } else {
+        setCurrentView('agency_site');
+        setPublicSection('inicio');
+        setIsAuthModalOpen(false);
+      }
+    };
+
+    handlePopState();
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Update browser URL on navigation
+  const navigateRoute = (view: 'agency_site' | 'management_system' | 'prompt_generator', sec?: 'inicio' | 'proyectos' | 'nosotros' | 'contactanos', isIngresar?: boolean) => {
+    let targetPath = '/';
+    if (isIngresar) {
+      targetPath = '/ingresar';
+    } else if (view === 'management_system') {
+      targetPath = '/sistema';
+    } else if (view === 'prompt_generator') {
+      targetPath = '/prompt-generator';
+    } else if (sec === 'proyectos') {
+      targetPath = '/proyectos';
+    } else if (sec === 'nosotros') {
+      targetPath = '/nosotros';
+    } else if (sec === 'contactanos') {
+      targetPath = '/contactanos';
+    } else {
+      targetPath = '/';
+    }
+
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState({}, '', targetPath);
+    }
+  };
 
   // Interactive app dataset with Firestore sync & localStorage fallback
   const [projects, setProjects] = useState<Project[]>(() => {
@@ -108,12 +175,20 @@ export default function App() {
 
   // Firestore Real-Time Subscriptions
   React.useEffect(() => {
+    let unsubUsers: (() => void) | null = null;
     let unsubProjects: (() => void) | null = null;
     let unsubInvoices: (() => void) | null = null;
     let unsubTickets: (() => void) | null = null;
     let unsubTasks: (() => void) | null = null;
 
     try {
+      unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+        if (!snapshot.empty) {
+          const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as UserAccount));
+          setUsers(list);
+        }
+      }, (err) => console.warn('Firestore subscription notice [users]:', err));
+
       unsubProjects = onSnapshot(collection(db, 'projects'), (snapshot) => {
         if (!snapshot.empty) {
           const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Project));
@@ -146,6 +221,7 @@ export default function App() {
     }
 
     return () => {
+      if (unsubUsers) unsubUsers();
       if (unsubProjects) unsubProjects();
       if (unsubInvoices) unsubInvoices();
       if (unsubTickets) unsubTickets();
@@ -181,20 +257,30 @@ export default function App() {
   const [activeModuleOverride, setActiveModuleOverride] = useState<RoleId | null>(null);
   const activeModuleRole: RoleId = activeModuleOverride || currentUser.role;
 
-  // Handlers for updating user roles & permissions
-  const handleUpdateUserPermissions = (userId: string, newPermissions: Record<string, boolean>) => {
+  // Handlers for updating user roles & permissions with Firestore sync
+  const handleUpdateUserPermissions = async (userId: string, newPermissions: Record<string, boolean>) => {
     setUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, permissions: newPermissions } : u))
     );
+    try {
+      await setDoc(doc(db, 'users', userId), { permissions: newPermissions }, { merge: true });
+    } catch (err) {
+      console.warn('Firestore write error for user permissions:', err);
+    }
   };
 
-  const handleUpdateUserRole = (userId: string, newRole: RoleId) => {
+  const handleUpdateUserRole = async (userId: string, newRole: RoleId) => {
     setUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
     );
+    try {
+      await setDoc(doc(db, 'users', userId), { role: newRole }, { merge: true });
+    } catch (err) {
+      console.warn('Firestore write error for user role:', err);
+    }
   };
 
-  const handleAddUser = (newUser: Omit<UserAccount, 'id' | 'createdAt'>) => {
+  const handleAddUser = async (newUser: Omit<UserAccount, 'id' | 'createdAt'>) => {
     const created: UserAccount = {
       ...newUser,
       id: `usr_${Date.now()}`,
@@ -203,6 +289,11 @@ export default function App() {
     setUsers((prev) => [...prev, created]);
     setCurrentUserId(created.id);
     setCurrentView('management_system');
+    try {
+      await setDoc(doc(db, 'users', created.id), created);
+    } catch (err) {
+      console.warn('Firestore write error for user:', err);
+    }
   };
 
   const handleLoginSuccess = (user: UserAccount) => {
@@ -321,7 +412,11 @@ export default function App() {
         onSwitchUser={handleSwitchUser}
         allUsers={users}
         onOpenPermissionMatrix={() => setIsPermissionModalOpen(true)}
-        onOpenLoginModal={() => setIsAuthModalOpen(true)}
+        onOpenLoginModal={() => {
+          setIsAuthModalOpen(true);
+          navigateRoute('agency_site', publicSection, true);
+        }}
+        onNavigateRoute={navigateRoute}
       />
 
       {/* Main View Area */}
@@ -331,9 +426,18 @@ export default function App() {
         {currentView === 'agency_site' && (
           <PublicLandingPage
             publicSection={publicSection}
-            onEnterManagementSystem={() => setCurrentView('management_system')}
-            onOpenPromptGenerator={() => setCurrentView('prompt_generator')}
-            onOpenLoginModal={() => setIsAuthModalOpen(true)}
+            onEnterManagementSystem={() => {
+              setCurrentView('management_system');
+              navigateRoute('management_system');
+            }}
+            onOpenPromptGenerator={() => {
+              setCurrentView('prompt_generator');
+              navigateRoute('prompt_generator');
+            }}
+            onOpenLoginModal={() => {
+              setIsAuthModalOpen(true);
+              navigateRoute('agency_site', publicSection, true);
+            }}
           />
         )}
 
@@ -493,6 +597,7 @@ export default function App() {
         onNavClick={(sec) => {
           setCurrentView('agency_site');
           setPublicSection(sec);
+          navigateRoute('agency_site', sec);
         }}
       />
 

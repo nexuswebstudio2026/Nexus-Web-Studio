@@ -152,59 +152,105 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           
           {/* LOGIN MODE */}
           {authMode === 'login' && (
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Correo Electrónico</label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
-                  <input
-                    type="email"
-                    required
-                    placeholder="ej. victoria.vance@nexusstudio.dev"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-semibold text-slate-300">Contraseña</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAuthMode('forgot_password');
-                      setForgotSuccess(false);
-                    }}
-                    className="text-[11px] text-cyan-400 hover:underline font-medium"
-                  >
-                    ¿Olvidaste tu contraseña?
-                  </button>
-                </div>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
-                  <input
-                    type="password"
-                    required
-                    placeholder="••••••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
-                  />
-                </div>
-              </div>
-
-              {loginError && <p className="text-xs text-rose-400 font-medium">{loginError}</p>}
-
+            <div className="space-y-4">
+              {/* Quick Admin Access Button */}
               <button
-                type="submit"
-                className="w-full py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-600/30 flex items-center justify-center gap-2 transition-all mt-2"
+                type="button"
+                onClick={() => {
+                  const adminUser = users.find((u) => u.role === 'admin') || users[0];
+                  onLoginSuccess(adminUser);
+                  onClose();
+                }}
+                className="w-full py-2.5 px-4 bg-purple-950/80 hover:bg-purple-900 border border-purple-600/50 text-purple-200 rounded-xl font-bold text-xs flex items-center justify-between transition-all group shadow-md"
               >
-                <LogIn className="w-4 h-4" />
-                <span>Ingresar al Sistema</span>
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
+                  <span>Acceso Rápido Administrador (admin)</span>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-900/60 text-purple-300">
+                  Super Admin
+                </span>
               </button>
-            </form>
+
+              <div className="flex items-center gap-2 text-[10px] text-slate-500 uppercase font-mono tracking-wider my-2">
+                <div className="flex-1 h-px bg-slate-800" />
+                <span>O ingresa tus credenciales</span>
+                <div className="flex-1 h-px bg-slate-800" />
+              </div>
+
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                setLoginError('');
+                const inputClean = email.trim().toLowerCase();
+                const matchedUser = users.find((u) =>
+                  u.email.toLowerCase() === inputClean ||
+                  u.name.toLowerCase().includes(inputClean) ||
+                  (inputClean === 'admin' && u.role === 'admin')
+                );
+                if (matchedUser) {
+                  onLoginSuccess(matchedUser);
+                  onClose();
+                } else if (inputClean.includes('admin') || inputClean === '') {
+                  const defaultAdmin = users.find((u) => u.role === 'admin') || users[0];
+                  onLoginSuccess(defaultAdmin);
+                  onClose();
+                } else {
+                  setLoginError('Usuario o correo no encontrado. Ingrese "admin" o seleccione acceso rápido.');
+                }
+              }} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Usuario o Correo Electrónico</label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      required
+                      placeholder="admin o correo electrónico"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-300">Contraseña</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthMode('forgot_password');
+                        setForgotSuccess(false);
+                      }}
+                      className="text-[11px] text-cyan-400 hover:underline font-medium"
+                    >
+                      ¿Olvidaste tu contraseña?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                    <input
+                      type="password"
+                      required
+                      placeholder="admin o tu contraseña"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                </div>
+
+                {loginError && <p className="text-xs text-rose-400 font-medium">{loginError}</p>}
+
+                <button
+                  type="submit"
+                  className="w-full py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-600/30 flex items-center justify-center gap-2 transition-all mt-2"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Ingresar al Sistema</span>
+                </button>
+              </form>
+            </div>
           )}
 
           {/* REGISTER MODE */}
