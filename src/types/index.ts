@@ -5,7 +5,10 @@ export type RoleId =
   | 'web_dev'
   | 'mobile_dev'
   | 'qa_devops'
-  | 'client';
+  | 'client'
+  | 'ai_agents'
+  | 'settings'
+  | 'firebase_crud';
 
 export interface RoleDefinition {
   id: RoleId;

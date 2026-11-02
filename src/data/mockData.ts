@@ -114,6 +114,18 @@ export const SYSTEM_ROLES: RoleDefinition[] = [
       'prompt_generator'
     ],
   },
+  {
+    id: 'firebase_crud',
+    name: 'Base de Datos Firebase (CRUD)',
+    description: 'Gestión directa de la base de datos de Firebase: crear, leer, actualizar y borrar registros en tiempo real.',
+    badgeColor: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+    defaultModule: 'firebase_crud',
+    availableModules: [
+      'firebase_crud',
+      'user_management',
+      'permission_matrix'
+    ],
+  },
 ];
 
 export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { HeaderBar } from './components/HeaderBar';
+import { SidebarNav } from './components/SidebarNav';
 import { AuthModal } from './components/AuthModal';
 import { RolePermissionModal } from './components/RolePermissionModal';
 import { PromptGeneratorTab } from './components/PromptGeneratorTab';
@@ -14,6 +15,9 @@ import { WebDevModule } from './components/modules/WebDevModule';
 import { MobileDevModule } from './components/modules/MobileDevModule';
 import { QaDevOpsModule } from './components/modules/QaDevOpsModule';
 import { ClientPortalModule } from './components/modules/ClientPortalModule';
+import { AiAgentsModule } from './components/modules/AiAgentsModule';
+import { SettingsModule } from './components/modules/SettingsModule';
+import { FirebaseCrudModule } from './components/modules/FirebaseCrudModule';
 
 import {
   UserAccount,
@@ -250,6 +254,45 @@ export default function App() {
   // Active Module View inside management system
   const [activeModuleOverride, setActiveModuleOverride] = useState<RoleId | null>(null);
   const activeModuleRole: RoleId = activeModuleOverride || currentUser.role;
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  // Sidebar position offset & alignment states
+  const [sidebarVerticalOffset, setSidebarVerticalOffset] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('nexus_sidebar_offset');
+      return saved ? parseInt(saved, 10) : 16;
+    } catch {
+      return 16;
+    }
+  });
+
+  const [sidebarSide, setSidebarSide] = useState<'left' | 'right'>(() => {
+    try {
+      return (localStorage.getItem('nexus_sidebar_side') as 'left' | 'right') || 'left';
+    } catch {
+      return 'left';
+    }
+  });
+
+  const handleAdjustSidebarOffset = (delta: number) => {
+    setSidebarVerticalOffset((prev) => {
+      const next = Math.max(0, Math.min(200, prev + delta));
+      try {
+        localStorage.setItem('nexus_sidebar_offset', next.toString());
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleToggleSidebarSide = () => {
+    setSidebarSide((prev) => {
+      const next = prev === 'left' ? 'right' : 'left';
+      try {
+        localStorage.setItem('nexus_sidebar_side', next);
+      } catch {}
+      return next;
+    });
+  };
 
   // Handlers for updating user roles & permissions with Firestore sync
   const handleUpdateUserPermissions = async (userId: string, newPermissions: Record<string, boolean>) => {
@@ -432,24 +475,26 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-purple-900 selection:text-white">
       
-      {/* Top Header */}
-      <HeaderBar
-        currentView={currentView}
-        setCurrentView={setCurrentView}
-        publicSection={publicSection}
-        setPublicSection={setPublicSection}
-        currentUser={currentUser}
-        onSwitchUser={handleSwitchUser}
-        allUsers={users}
-        onOpenPermissionMatrix={() => setIsPermissionModalOpen(true)}
-        onOpenLoginModal={() => {
-          setIsAuthModalOpen(true);
-          navigateRoute('agency_site', publicSection, true);
-        }}
-        isLoggedIn={isLoggedIn}
-        onLogout={handleLogout}
-        onNavigateRoute={navigateRoute}
-      />
+      {/* Top Header Bar (Only visible outside management system) */}
+      {currentView !== 'management_system' && (
+        <HeaderBar
+          currentView={currentView}
+          setCurrentView={setCurrentView}
+          publicSection={publicSection}
+          setPublicSection={setPublicSection}
+          currentUser={currentUser}
+          onSwitchUser={handleSwitchUser}
+          allUsers={users}
+          onOpenPermissionMatrix={() => setIsPermissionModalOpen(true)}
+          onOpenLoginModal={() => {
+            setIsAuthModalOpen(true);
+            navigateRoute('agency_site', publicSection, true);
+          }}
+          isLoggedIn={isLoggedIn}
+          onLogout={handleLogout}
+          onNavigateRoute={navigateRoute}
+        />
+      )}
 
       {/* Main View Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -477,158 +522,172 @@ export default function App() {
         {/* VIEW 2: Master Prompt Generator Tab */}
         {currentView === 'prompt_generator' && <PromptGeneratorTab />}
 
-        {/* VIEW 3: Management System with Role Modules & RBAC */}
+        {/* VIEW 3: Management System Panel with Left/Right Sidebar Nav & RBAC */}
         {currentView === 'management_system' && (
-          <div className="space-y-6">
+          <div className={`flex flex-col ${sidebarSide === 'right' ? 'md:flex-row-reverse' : 'md:flex-row'} gap-6 items-start`}>
             
-            {/* Top Workspace Bar: Active User, Global Search & Module Switcher */}
-            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 shadow-xl flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+            {/* Sidebar Navigation with Position Controls */}
+            <SidebarNav
+              activeModuleRole={activeModuleRole}
+              setActiveModuleRole={(roleId) => setActiveModuleOverride(roleId)}
+              currentUser={currentUser}
+              onOpenPermissionMatrix={() => setIsPermissionModalOpen(true)}
+              onLogout={handleLogout}
+              onGoToLanding={() => {
+                setCurrentView('agency_site');
+                setPublicSection('inicio');
+                navigateRoute('agency_site', 'inicio');
+              }}
+              onOpenFirebaseCrud={() => setActiveModuleOverride('firebase_crud')}
+              verticalOffset={sidebarVerticalOffset}
+              onAdjustOffset={handleAdjustSidebarOffset}
+              sidebarSide={sidebarSide}
+              onToggleSide={handleToggleSidebarSide}
+              isCollapsed={isSidebarCollapsed}
+              setIsCollapsed={setIsSidebarCollapsed}
+            />
+
+            {/* Main Content Viewport */}
+            <div className="flex-1 min-w-0 w-full space-y-6">
               
-              {/* Active User Context Indicator */}
-              <div className="flex items-center gap-3 shrink-0">
-                <img
-                  src={currentUser.avatar}
-                  alt={currentUser.name}
-                  className="w-10 h-10 rounded-xl object-cover border border-purple-500/40 shrink-0"
-                />
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-white">{currentUser.name}</span>
-                    <span className="text-xs text-slate-400 font-mono">({currentUser.jobTitle})</span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[10px] text-purple-300 font-mono bg-purple-950 px-2 py-0.2 rounded border border-purple-800">
-                      Rol: {SYSTEM_ROLES.find((r) => r.id === currentUser.role)?.name}
-                    </span>
-                    <button
-                      onClick={() => setIsPermissionModalOpen(true)}
-                      className="text-[10px] text-slate-400 hover:text-purple-300 underline font-medium flex items-center gap-1"
-                    >
-                      <ShieldCheck className="w-3 h-3 text-purple-400" />
-                      <span>Ver RBAC ({Object.values(currentUser.permissions).filter(Boolean).length} activas)</span>
-                    </button>
-                    <button
-                      onClick={handleLogout}
-                      className="text-[10px] text-rose-300 hover:text-rose-100 bg-rose-950/60 hover:bg-rose-900 px-2 py-0.5 rounded border border-rose-800/60 transition-colors flex items-center gap-1 ml-1"
-                      title="Cerrar sesión"
-                    >
-                      <LogOut className="w-3 h-3 text-rose-400" />
-                      <span>Cerrar Sesión</span>
-                    </button>
+              {/* Top Workspace Header Bar */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 shadow-xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                
+                {/* Active User Context (Clickable -> Firebase CRUD) */}
+                <div
+                  onClick={() => setActiveModuleOverride('firebase_crud')}
+                  className="flex items-center gap-3 shrink-0 cursor-pointer group p-1.5 rounded-2xl hover:bg-slate-800/60 transition-colors border border-transparent hover:border-amber-500/40"
+                  title="Haz clic en tu nombre de perfil para gestionar datos en la base de datos de Firebase"
+                >
+                  <img
+                    src={currentUser.avatar}
+                    alt={currentUser.name}
+                    className="w-10 h-10 rounded-xl object-cover border border-purple-500/40 shrink-0 group-hover:border-amber-400 transition-colors"
+                  />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-white group-hover:text-amber-300 transition-colors flex items-center gap-1.5">
+                        {currentUser.name}
+                      </span>
+                      <span className="text-xs text-slate-400 font-mono">({currentUser.jobTitle})</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[10px] text-purple-300 font-mono bg-purple-950 px-2 py-0.2 rounded border border-purple-800">
+                        Rol: {SYSTEM_ROLES.find((r) => r.id === currentUser.role)?.name || 'Usuario'}
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsPermissionModalOpen(true);
+                        }}
+                        className="text-[10px] text-slate-400 hover:text-purple-300 underline font-medium flex items-center gap-1"
+                      >
+                        <ShieldCheck className="w-3 h-3 text-purple-400" />
+                        <span>Ver RBAC ({Object.values(currentUser.permissions).filter(Boolean).length} activas)</span>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleLogout();
+                        }}
+                        className="text-[10px] text-rose-300 hover:text-rose-100 bg-rose-950/60 hover:bg-rose-900 px-2 py-0.5 rounded border border-rose-800/60 transition-colors flex items-center gap-1 ml-1"
+                        title="Cerrar sesión"
+                      >
+                        <LogOut className="w-3 h-3 text-rose-400" />
+                        <span>Cerrar Sesión</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
+
+                {/* Global Search Bar */}
+                <div className="flex-1 max-w-md w-full">
+                  <GlobalSearchBar
+                    projects={projects}
+                    tickets={tickets}
+                    tasks={tasks}
+                    invoices={invoices}
+                    onSelectModule={(roleId) => setActiveModuleOverride(roleId)}
+                  />
+                </div>
+
               </div>
 
-              {/* Global Search Bar */}
-              <div className="flex-1 max-w-md mx-auto w-full">
-                <GlobalSearchBar
+              {/* Render Selected Module Viewport */}
+              {activeModuleRole === 'firebase_crud' && (
+                <FirebaseCrudModule currentUser={currentUser} />
+              )}
+
+              {activeModuleRole === 'admin' && (
+                <AdminModule
+                  currentUser={currentUser}
+                  users={users}
                   projects={projects}
-                  tickets={tickets}
-                  tasks={tasks}
-                  invoices={invoices}
-                  onSelectModule={(roleId) => setActiveModuleOverride(roleId)}
+                  onOpenPermissions={() => setIsPermissionModalOpen(true)}
+                  onUpdateUserRole={handleUpdateUserRole}
+                  onAddProject={handleAddProject}
+                  onDeleteProject={handleDeleteProject}
                 />
-              </div>
+              )}
 
-              {/* Module Switcher Buttons */}
-              <div className="flex flex-wrap items-center gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-800 shrink-0">
-                {[
-                  { id: 'admin', label: 'Administración', icon: Building2 },
-                  { id: 'accounting', label: 'Contabilidad', icon: DollarSign },
-                  { id: 'support', label: 'Atención Cliente', icon: LifeBuoy },
-                  { id: 'web_dev', label: 'Desarrollo Web', icon: Code },
-                  { id: 'mobile_dev', label: 'Desarrollo Móvil', icon: Smartphone },
-                  { id: 'qa_devops', label: 'QA & DevOps', icon: ShieldAlert },
-                  { id: 'client', label: 'Portal Cliente', icon: UserCheck },
-                ].map((mod) => {
-                  const IconComp = mod.icon;
-                  const isActive = activeModuleRole === mod.id;
-                  const isUserDefaultRole = currentUser.role === mod.id;
+              {activeModuleRole === 'accounting' && (
+                <AccountingModule
+                  currentUser={currentUser}
+                  invoices={invoices}
+                  projects={projects}
+                  onAddInvoice={handleAddInvoice}
+                  onUpdateInvoiceStatus={handleUpdateInvoiceStatus}
+                />
+              )}
 
-                  return (
-                    <button
-                      key={mod.id}
-                      onClick={() => setActiveModuleOverride(mod.id as RoleId)}
-                      className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all flex items-center gap-1.5 ${
-                        isActive
-                          ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
-                          : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
-                      }`}
-                    >
-                      <IconComp className="w-3.5 h-3.5" />
-                      <span>{mod.label}</span>
-                      {isUserDefaultRole && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-purple-300 ml-0.5" title="Rol asignado a su cuenta" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+              {activeModuleRole === 'support' && (
+                <SupportModule
+                  currentUser={currentUser}
+                  tickets={tickets}
+                  onAddMessageToTicket={handleAddMessageToTicket}
+                  onUpdateTicketStatus={handleUpdateTicketStatus}
+                />
+              )}
+
+              {activeModuleRole === 'web_dev' && (
+                <WebDevModule
+                  currentUser={currentUser}
+                  tasks={tasks}
+                  onAddTask={handleAddTask}
+                  onUpdateTaskStatus={handleUpdateTaskStatus}
+                />
+              )}
+
+              {activeModuleRole === 'mobile_dev' && (
+                <MobileDevModule
+                  currentUser={currentUser}
+                  releases={releases}
+                  onAddRelease={handleAddRelease}
+                />
+              )}
+
+              {activeModuleRole === 'qa_devops' && (
+                <QaDevOpsModule currentUser={currentUser} />
+              )}
+
+              {activeModuleRole === 'client' && (
+                <ClientPortalModule
+                  currentUser={currentUser}
+                  projects={projects}
+                  invoices={invoices}
+                  onPayInvoice={handlePayInvoice}
+                />
+              )}
+
+              {activeModuleRole === 'ai_agents' && (
+                <AiAgentsModule currentUser={currentUser} />
+              )}
+
+              {activeModuleRole === 'settings' && (
+                <SettingsModule currentUser={currentUser} />
+              )}
 
             </div>
-
-            {/* Render Selected Module Viewport */}
-            {activeModuleRole === 'admin' && (
-              <AdminModule
-                currentUser={currentUser}
-                users={users}
-                projects={projects}
-                onOpenPermissions={() => setIsPermissionModalOpen(true)}
-                onUpdateUserRole={handleUpdateUserRole}
-                onAddProject={handleAddProject}
-                onDeleteProject={handleDeleteProject}
-              />
-            )}
-
-            {activeModuleRole === 'accounting' && (
-              <AccountingModule
-                currentUser={currentUser}
-                invoices={invoices}
-                projects={projects}
-                onAddInvoice={handleAddInvoice}
-                onUpdateInvoiceStatus={handleUpdateInvoiceStatus}
-              />
-            )}
-
-            {activeModuleRole === 'support' && (
-              <SupportModule
-                currentUser={currentUser}
-                tickets={tickets}
-                onAddMessageToTicket={handleAddMessageToTicket}
-                onUpdateTicketStatus={handleUpdateTicketStatus}
-              />
-            )}
-
-            {activeModuleRole === 'web_dev' && (
-              <WebDevModule
-                currentUser={currentUser}
-                tasks={tasks}
-                onAddTask={handleAddTask}
-                onUpdateTaskStatus={handleUpdateTaskStatus}
-              />
-            )}
-
-            {activeModuleRole === 'mobile_dev' && (
-              <MobileDevModule
-                currentUser={currentUser}
-                releases={releases}
-                onAddRelease={handleAddRelease}
-              />
-            )}
-
-            {activeModuleRole === 'qa_devops' && (
-              <QaDevOpsModule currentUser={currentUser} />
-            )}
-
-            {activeModuleRole === 'client' && (
-              <ClientPortalModule
-                currentUser={currentUser}
-                projects={projects}
-                invoices={invoices}
-                onPayInvoice={handlePayInvoice}
-              />
-            )}
-
           </div>
         )}
 
