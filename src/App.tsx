@@ -85,23 +85,18 @@ export default function App() {
   });
   const [publicSection, setPublicSection] = useState<'inicio' | 'proyectos' | 'nosotros' | 'contactanos'>('inicio');
 
-  // Automatically seed Firestore database on initial mount
+  // Clear legacy local storage caches on mount so Firestore is 100% single source of truth
   React.useEffect(() => {
-    seedFirestoreDatabase().then((res) => {
-      if (res.success) {
-        console.log(`✅ Firestore populated with ${res.count} documents!`);
-      }
-    });
+    try {
+      localStorage.removeItem('nexus_projects');
+      localStorage.removeItem('nexus_users');
+      localStorage.removeItem('nexus_invoices');
+      localStorage.removeItem('nexus_tickets');
+      localStorage.removeItem('nexus_tasks');
+    } catch {}
   }, []);
 
-  const [users, setUsers] = useState<UserAccount[]>(() => {
-    try {
-      const saved = localStorage.getItem('nexus_users');
-      return saved ? JSON.parse(saved) : MOCK_USERS;
-    } catch {
-      return MOCK_USERS;
-    }
-  });
+  const [users, setUsers] = useState<UserAccount[]>(MOCK_USERS);
 
   // Modals state
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -175,39 +170,11 @@ export default function App() {
     }
   };
 
-  // Interactive app dataset with Firestore sync & localStorage fallback
-  const [projects, setProjects] = useState<Project[]>(() => {
-    try {
-      const saved = localStorage.getItem('nexus_projects');
-      return saved ? JSON.parse(saved) : MOCK_PROJECTS;
-    } catch {
-      return MOCK_PROJECTS;
-    }
-  });
-  const [invoices, setInvoices] = useState<Invoice[]>(() => {
-    try {
-      const saved = localStorage.getItem('nexus_invoices');
-      return saved ? JSON.parse(saved) : MOCK_INVOICES;
-    } catch {
-      return MOCK_INVOICES;
-    }
-  });
-  const [tickets, setTickets] = useState<SupportTicket[]>(() => {
-    try {
-      const saved = localStorage.getItem('nexus_tickets');
-      return saved ? JSON.parse(saved) : MOCK_TICKETS;
-    } catch {
-      return MOCK_TICKETS;
-    }
-  });
-  const [tasks, setTasks] = useState<SprintTask[]>(() => {
-    try {
-      const saved = localStorage.getItem('nexus_tasks');
-      return saved ? JSON.parse(saved) : MOCK_TASKS;
-    } catch {
-      return MOCK_TASKS;
-    }
-  });
+  // Interactive app dataset driven directly by Firestore
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>(MOCK_INVOICES);
+  const [tickets, setTickets] = useState<SupportTicket[]>(MOCK_TICKETS);
+  const [tasks, setTasks] = useState<SprintTask[]>(MOCK_TASKS);
   const [releases, setReleases] = useState<MobileRelease[]>(MOCK_MOBILE_RELEASES);
 
   // Firestore Real-Time Subscriptions
@@ -221,7 +188,7 @@ export default function App() {
     try {
       unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
         const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as UserAccount));
-        setUsers(list);
+        if (list.length > 0) setUsers(list);
       }, (err) => console.warn('Firestore subscription notice [users]:', err));
 
       unsubProjects = onSnapshot(collection(db, 'projects'), (snapshot) => {
@@ -231,17 +198,17 @@ export default function App() {
 
       unsubInvoices = onSnapshot(collection(db, 'invoices'), (snapshot) => {
         const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Invoice));
-        setInvoices(list);
+        if (list.length > 0) setInvoices(list);
       }, (err) => console.warn('Firestore subscription notice [invoices]:', err));
 
       unsubTickets = onSnapshot(collection(db, 'tickets'), (snapshot) => {
         const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as SupportTicket));
-        setTickets(list);
+        if (list.length > 0) setTickets(list);
       }, (err) => console.warn('Firestore subscription notice [tickets]:', err));
 
       unsubTasks = onSnapshot(collection(db, 'tasks'), (snapshot) => {
         const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as SprintTask));
-        setTasks(list);
+        if (list.length > 0) setTasks(list);
       }, (err) => console.warn('Firestore subscription notice [tasks]:', err));
     } catch (e) {
       console.warn('Firestore subscription initialized locally:', e);
