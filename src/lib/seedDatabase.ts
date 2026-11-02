@@ -7,6 +7,7 @@ import {
   MOCK_TICKETS,
   MOCK_TASKS,
 } from '../data/mockData';
+import { DEFAULT_INITIAL_AGENTS } from '../components/modules/AiAgentsModule';
 
 export async function seedFirestoreDatabase(): Promise<{ success: boolean; count: number; error?: string }> {
   try {
@@ -42,7 +43,13 @@ export async function seedFirestoreDatabase(): Promise<{ success: boolean; count
       count++;
     }
 
-    console.log(`🎉 Firestore Database successfully seeded with ${count} documents across 5 collections!`);
+    // Seed AI Agents
+    for (const agent of DEFAULT_INITIAL_AGENTS) {
+      await setDoc(doc(db, 'ai_agents', agent.id), agent, { merge: true });
+      count++;
+    }
+
+    console.log(`🎉 Firestore Database successfully seeded with ${count} documents across 6 collections!`);
     return { success: true, count };
   } catch (err: any) {
     console.error('Error seeding Firestore database:', err);

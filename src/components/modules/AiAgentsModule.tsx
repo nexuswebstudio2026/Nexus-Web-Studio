@@ -35,7 +35,7 @@ import {
   orderBy,
   limit,
 } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { UserAccount } from '../../types';
 
 interface AiAgentsModuleProps {
@@ -69,7 +69,7 @@ export interface AiAgentLog {
   timestamp: string;
 }
 
-const DEFAULT_INITIAL_AGENTS: AiAgent[] = [
+export const DEFAULT_INITIAL_AGENTS: AiAgent[] = [
   {
     id: 'agent_architect',
     name: 'Nexus Code Architect Agent',
@@ -206,18 +206,26 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
           }));
           setAgents(loadedAgents);
         } else {
-          // Seed defaults if empty
-          DEFAULT_INITIAL_AGENTS.forEach(async (ag) => {
-            try {
-              await setDoc(doc(db, 'ai_agents', ag.id), ag);
-            } catch (err) {
-              // Ignore initial seed permission error if offline or rules updating
-            }
-          });
+          // If Firestore collection is empty, check if initial seed has run
+          const hasSeeded = localStorage.getItem('nexus_ai_agents_seeded');
+          if (!hasSeeded) {
+            localStorage.setItem('nexus_ai_agents_seeded', 'true');
+            DEFAULT_INITIAL_AGENTS.forEach(async (ag) => {
+              try {
+                await setDoc(doc(db, 'ai_agents', ag.id), ag);
+              } catch (err) {
+                // Ignore initial seed permission error
+              }
+            });
+          } else {
+            // Document count is 0 because agents were deleted from UI or Firestore console
+            setAgents([]);
+          }
         }
       },
       (error) => {
-        console.warn('Firestore agents sync info:', error?.message || error);
+        console.warn('Firestore agents sync error:', error);
+        handleFirestoreError(error, OperationType.LIST, 'ai_agents');
       }
     );
 
@@ -233,7 +241,8 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
         setLogs(loadedLogs);
       },
       (error) => {
-        console.warn('Firestore logs sync info:', error?.message || error);
+        console.warn('Firestore logs sync error:', error);
+        handleFirestoreError(error, OperationType.LIST, 'ai_agent_logs');
       }
     );
 
@@ -244,6 +253,13 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
   }, []);
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId) || agents[0];
+
+  // Auto-switch selected agent if deleted
+  useEffect(() => {
+    if (agents.length > 0 && !agents.some((a) => a.id === selectedAgentId)) {
+      setSelectedAgentId(agents[0].id);
+    }
+  }, [agents, selectedAgentId]);
 
   // Sync training data form when selected agent changes
   useEffect(() => {
@@ -374,6 +390,7 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
       });
     } catch (err) {
       console.error('Error saving agent to Firestore:', err);
+      handleFirestoreError(err, OperationType.CREATE, `ai_agents/${newId}`);
     }
   };
 
@@ -402,6 +419,7 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
       });
     } catch (err) {
       console.error('Error updating training in Firestore:', err);
+      handleFirestoreError(err, OperationType.UPDATE, `ai_agents/${selectedAgent.id}`);
     }
   };
 
@@ -454,6 +472,7 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
       });
     } catch (err) {
       console.error('Error toggling autonomous mode:', err);
+      handleFirestoreError(err, OperationType.UPDATE, `ai_agents/${agent.id}`);
     }
   };
 
@@ -468,6 +487,7 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
       }
     } catch (err) {
       console.error('Error deleting agent:', err);
+      handleFirestoreError(err, OperationType.DELETE, `ai_agents/${agentId}`);
     }
   };
 

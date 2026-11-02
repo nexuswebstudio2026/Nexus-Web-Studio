@@ -20,6 +20,7 @@ import {
   Save,
   AlertTriangle,
   Info,
+  Bot,
 } from 'lucide-react';
 import {
   collection,
@@ -35,7 +36,7 @@ interface FirebaseCrudModuleProps {
   currentUser: UserAccount;
 }
 
-type CollectionType = 'users' | 'projects' | 'invoices' | 'tickets' | 'tasks' | 'releases' | 'custom';
+type CollectionType = 'users' | 'projects' | 'invoices' | 'tickets' | 'tasks' | 'releases' | 'ai_agents' | 'custom';
 
 export const FirebaseCrudModule: React.FC<FirebaseCrudModuleProps> = ({ currentUser }) => {
   const [activeCollection, setActiveCollection] = useState<CollectionType>('users');
@@ -175,6 +176,22 @@ export const FirebaseCrudModule: React.FC<FirebaseCrudModuleProps> = ({ currentU
         priority: 'high',
         estimatedHours: 10,
         loggedHours: 2,
+      };
+    } else if (activeCollection === 'ai_agents') {
+      template = {
+        id: newId,
+        name: 'Nuevo Agente IA Autónomo',
+        role: 'Auditoría & Monitoreo 24/7',
+        description: 'Agente inteligente configurado en Firebase para ejecución autónoma.',
+        customSkillName: 'Monitoreo de Salud del Sistema',
+        trainedInstructions: 'Escanear servicios activamente y registrar auditorías.',
+        model: 'Gemini 2.5 Flash',
+        icon: 'Brain',
+        status: 'autonomous',
+        capabilities: ['Auditoría', 'Monitoreo 24/7'],
+        executionInterval: 30,
+        isAutonomous247: true,
+        createdAt: new Date().toISOString(),
       };
     } else {
       template = {
@@ -351,6 +368,7 @@ export const FirebaseCrudModule: React.FC<FirebaseCrudModuleProps> = ({ currentU
             { id: 'tickets', label: 'Tickets Soporte', icon: LifeBuoy, count: activeCollection === 'tickets' ? documents.length : null },
             { id: 'tasks', label: 'Tareas Sprint', icon: CheckSquare, count: activeCollection === 'tasks' ? documents.length : null },
             { id: 'releases', label: 'Releases Móviles', icon: Smartphone, count: activeCollection === 'releases' ? documents.length : null },
+            { id: 'ai_agents', label: 'Agentes de IA', icon: Bot, count: activeCollection === 'ai_agents' ? documents.length : null },
             { id: 'custom', label: 'Personalizada', icon: Layers, count: null },
           ].map((tab) => {
             const IconComp = tab.icon;
