@@ -27,13 +27,18 @@ app.post('/api/contact', async (req, res) => {
 
     console.log(`[SMTP Intent] Intentando enviar correo desde ${name} (${email}) hacia ${targetEmail}`);
 
-    // Create Gmail-optimized Nodemailer Transporter
+    // Create Gmail-optimized Nodemailer Transporter using SSL port 465
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: Number(process.env.SMTP_PORT) || 465,
+      secure: true, // SSL port 465
       auth: {
         user: smtpUser,
         pass: smtpPass,
       },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 10000,
     });
 
     // Configure 'from' with the Client's Name so Gmail Recibidos shows the Client's Name as the Sender

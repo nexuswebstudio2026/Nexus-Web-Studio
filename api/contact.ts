@@ -31,13 +31,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const smtpPass = (process.env.SMTP_PASS || 'souqnarnxoueoiyz').replace(/\s+/g, '').trim();
     const targetEmail = (process.env.SMTP_TO || 'nexuswebstudio2026@gmail.com').trim();
 
-    // Create Nodemailer Transporter with Gmail service
+    // Create Nodemailer Transporter using Gmail SMTP SSL port 465
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: Number(process.env.SMTP_PORT) || 465,
+      secure: true, // SSL port 465
       auth: {
         user: smtpUser,
         pass: smtpPass,
       },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 10000,
     });
 
     const mailOptions = {
