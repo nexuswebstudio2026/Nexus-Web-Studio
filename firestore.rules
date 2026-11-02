@@ -35,5 +35,15 @@ service cloud.firestore {
     match /tasks/{taskId} {
       allow read, write: if true;
     }
+
+    // AI Agents Collection
+    match /ai_agents/{agentId} {
+      allow read, write: if true;
+    }
+
+    // AI Agent Logs Collection
+    match /ai_agent_logs/{logId} {
+      allow read, write: if true;
+    }
   }
 }

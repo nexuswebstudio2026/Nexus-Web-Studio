@@ -81,6 +81,43 @@
         "createdAt": { "type": "string" }
       },
       "required": ["title", "status"]
+    },
+    "AiAgent": {
+      "title": "AiAgent",
+      "description": "Autonomous AI Agent configured with custom trained skill",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "description": { "type": "string" },
+        "customSkillName": { "type": "string" },
+        "trainedInstructions": { "type": "string" },
+        "model": { "type": "string" },
+        "icon": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "idle", "busy", "autonomous"] },
+        "capabilities": { "type": "array", "items": { "type": "string" } },
+        "executionInterval": { "type": "number" },
+        "isAutonomous247": { "type": "boolean" },
+        "lastRunTimestamp": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "role", "customSkillName", "trainedInstructions"]
+    },
+    "AiAgentLog": {
+      "title": "AiAgentLog",
+      "description": "24/7 background execution audit log entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agentId": { "type": "string" },
+        "agentName": { "type": "string" },
+        "skillExecuted": { "type": "string" },
+        "outputSummary": { "type": "string" },
+        "status": { "type": "string", "enum": ["completed", "executing", "warning"] },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["agentId", "agentName", "skillExecuted", "outputSummary"]
     }
   },
   "firestore": {
@@ -103,6 +140,14 @@
     "/tasks/{taskId}": {
       "schema": { "$ref": "#/entities/Task" },
       "description": "Project tasks collection"
+    },
+    "/ai_agents/{agentId}": {
+      "schema": { "$ref": "#/entities/AiAgent" },
+      "description": "AI Agents collection"
+    },
+    "/ai_agent_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AiAgentLog" },
+      "description": "24/7 AI Agent activity log collection"
     }
   }
 }
