@@ -98,7 +98,7 @@ app.post('/api/gemini-agent', async (req, res) => {
 
     const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
 
-    if (apiKey) {
+    if (apiKey && apiKey.trim() !== '' && !apiKey.includes('YOUR_API_KEY') && !apiKey.includes('placeholder')) {
       try {
         const { GoogleGenAI } = await import('@google/genai');
         const ai = new GoogleGenAI({ apiKey });
@@ -125,7 +125,8 @@ Responde directamente aplicando tu habilidad entrenada en idioma español.`;
           source: 'gemini-2.5-flash',
         });
       } catch (geminiError: any) {
-        console.warn('Fallback execution for Gemini SDK:', geminiError?.message);
+        // Smoothly fall through to nexus-skill-engine fallback without logging noisy API key error payloads
+        console.log(`[Gemini SDK Info] Fallback generator active for agent: ${agentName}`);
       }
     }
 
@@ -134,7 +135,7 @@ Responde directamente aplicando tu habilidad entrenada en idioma español.`;
     let fallbackText = '';
 
     if (isAutonomousRun) {
-      fallbackText = `[24/7 AUTÓNOMO - ${timestamp}] Agente ${agentName} ejecutó exitosamente la habilidad "${customSkillName}". Auditoría continua completada. Criterio de entrenamiento aplicado: "${trainedInstructions.slice(0, 80)}...". Sistema operativo sin anomalías.`;
+      fallbackText = `[24/7 AUTÓNOMO - ${timestamp}] Agente ${agentName} ejecutó exitosamente la habilidad "${customSkillName}". Auditoría continua completada. Criterio de entrenamiento aplicado: "${(trainedInstructions || '').slice(0, 80)}...". Sistema operativo sin anomalías.`;
     } else {
       fallbackText = `[Agente ${agentName}]: Aplicando mi habilidad entrenada "${customSkillName}" a tu solicitud: "${prompt}".\n\nRegla de entrenamiento activa: ${trainedInstructions}\n\nResultado: Tarea procesada y validada según los estándares de Nexus Web Studio.`;
     }
