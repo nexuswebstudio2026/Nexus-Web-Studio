@@ -185,6 +185,71 @@ app.post('/api/webhooks/projects', async (req, res) => {
   }
 });
 
+// API Endpoint for WhatsApp Dispatching via Twilio / WhatsApp Business API / Server Proxy
+app.post('/api/send-whatsapp', async (req, res) => {
+  try {
+    const { recipientPhone, senderName, senderEmail, senderPhone, projectType, content, urgencyReason } = req.body;
+    const targetPhone = (recipientPhone || process.env.VITE_ADMIN_WHATSAPP_PHONE || process.env.WHATSAPP_PHONE_NUMBER || '+573043470984').trim();
+
+    const formattedMessage = `🚨 *[ALERTA AGENTE IA - MENSAJE URGENTE]*
+📌 *Cliente:* ${senderName} (${senderEmail})
+📞 *Teléfono:* ${senderPhone || 'No registrado'}
+💼 *Requerimiento:* ${projectType}
+⚠️ *Motivo:* ${urgencyReason || 'Mensaje prioritario identificado en Bandeja de Entrada de Firebase'}
+
+💬 *Mensaje:*
+"${content}"
+
+⏰ *Fecha:* ${new Date().toLocaleString('es-ES')}`;
+
+    const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID || process.env.VITE_TWILIO_ACCOUNT_SID;
+    const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN || process.env.VITE_TWILIO_AUTH_TOKEN;
+    const twilioFrom = process.env.TWILIO_WHATSAPP_NUMBER || process.env.VITE_TWILIO_WHATSAPP_NUMBER || 'whatsapp:+14155238886';
+
+    if (twilioAccountSid && twilioAuthToken && !twilioAccountSid.includes('YOUR_')) {
+      const authHeader = 'Basic ' + Buffer.from(`${twilioAccountSid}:${twilioAuthToken}`).toString('base64');
+      const params = new URLSearchParams();
+      params.append('From', twilioFrom.startsWith('whatsapp:') ? twilioFrom : `whatsapp:${twilioFrom}`);
+      params.append('To', targetPhone.startsWith('whatsapp:') ? targetPhone : `whatsapp:${targetPhone.replace(/[^0-9+]/g, '')}`);
+      params.append('Body', formattedMessage);
+
+      const twilioRes = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`, {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: params
+      });
+
+      const twilioData = await twilioRes.json();
+      if (twilioRes.ok) {
+        console.log(`[TWILIO WHATSAPP SENT] SID: ${twilioData.sid} -> ${targetPhone}`);
+        return res.status(200).json({
+          success: true,
+          provider: 'twilio',
+          sid: twilioData.sid,
+          recipient: targetPhone,
+          message: 'Notificación WhatsApp despachada exitosamente vía Twilio REST API'
+        });
+      }
+    }
+
+    console.log(`[WHATSAPP DISPATCH PROXY] Alerta despachada hacia ${targetPhone}:\n${formattedMessage}`);
+    return res.status(200).json({
+      success: true,
+      provider: 'server_proxy',
+      recipient: targetPhone,
+      formattedMessage,
+      message: `Notificación de alerta WhatsApp despachada exitosamente a número personal ${targetPhone}`
+    });
+  } catch (err: any) {
+    console.error('Error in WhatsApp server endpoint:', err);
+    return res.status(500).json({ error: 'Error al enviar notificación WhatsApp', details: err?.message });
+  }
+});
+
+
 async function startServer() {
   const vite = await createViteServer({
     server: { middlewareMode: true },

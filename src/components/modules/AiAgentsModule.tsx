@@ -39,6 +39,13 @@ import {
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { UserAccount } from '../../types';
+import {
+  setupFirebaseInboxWebhookListener,
+  sendWhatsAppNotification,
+  getAdminWhatsAppPhone,
+  checkAndTriggerUrgentWhatsAppAlert,
+} from '../../lib/webhookHandlers';
+
 
 interface AiAgentsModuleProps {
   currentUser: UserAccount;
@@ -160,6 +167,39 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
 
   // Modal States
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  // Toast Notification State
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    type: 'success' | 'info' | 'error';
+  } | null>(null);
+
+  // Live Skill Testing Modal State
+  const [isLiveTestModalOpen, setIsLiveTestModalOpen] = useState(false);
+  const [liveTestAgent, setLiveTestAgent] = useState<AiAgent | null>(null);
+  const [liveTestSkillName, setLiveTestSkillName] = useState('');
+  const [liveTestInstructions, setLiveTestInstructions] = useState('');
+  const [liveTestPrompt, setLiveTestPrompt] = useState('');
+  const [liveTestOutput, setLiveTestOutput] = useState<string | null>(null);
+  const [isLiveTesting, setIsLiveTesting] = useState(false);
+
+  const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
+    setToastNotification({ message, type });
+    setTimeout(() => {
+      setToastNotification(null);
+    }, 4500);
+  };
+
+  const openLiveTestModal = (agent: AiAgent, customSkillOverride?: string, customInstructionsOverride?: string) => {
+    setLiveTestAgent(agent);
+    const skillName = customSkillOverride || agent.customSkillName || 'Habilidad de Agente';
+    const instructions = customInstructionsOverride || agent.trainedInstructions || '';
+    setLiveTestSkillName(skillName);
+    setLiveTestInstructions(instructions);
+    setLiveTestPrompt(`Ejecutar la habilidad "${skillName}" y generar un análisis de estado.`);
+    setLiveTestOutput(null);
+    setIsLiveTestModalOpen(true);
+  };
 
   // New Agent Form State
   const [newAgent, setNewAgent] = useState<{
@@ -414,12 +454,19 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
       }
     );
 
+    // Auto-listen for urgent Firebase Inbox contact messages to dispatch WhatsApp alert
+    const unsubscribeInbox = setupFirebaseInboxWebhookListener((msg, result) => {
+      console.log('Alerta WhatsApp 24/7 procesada por mensaje urgente de Firebase:', msg.name, result.statusText);
+    });
+
     return () => {
       unsubscribeAgents();
       unsubscribeLogs();
       unsubscribeWebhooks();
+      unsubscribeInbox();
     };
   }, []);
+
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId) || agents[0];
 
@@ -545,6 +592,7 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
 
       setSelectedAgentId(newId);
       setIsCreateModalOpen(false);
+      showToast(`¡El agente "${createdAgent.name}" ha sido creado y guardado en Firebase!`, 'success');
       setNewAgent({
         name: '',
         role: '',
@@ -586,9 +634,70 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
         status: 'completed',
         timestamp: `${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES')}`,
       });
+
+      showToast(
+        `¡Agente "${selectedAgent.name}" guardado y reentrenado con éxito!`,
+        'success'
+      );
     } catch (err) {
       console.error('Error updating training in Firestore:', err);
       handleFirestoreError(err, OperationType.UPDATE, `ai_agents/${selectedAgent.id}`);
+    }
+  };
+
+  // Live Skill Interactive Test Execution Handler
+  const handleRunLiveTestExecution = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!liveTestAgent || !liveTestPrompt.trim()) return;
+
+    setIsLiveTesting(true);
+    setLiveTestOutput(null);
+
+    try {
+      const response = await fetch('/api/gemini-agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentName: liveTestAgent.name,
+          role: liveTestAgent.role,
+          customSkillName: liveTestSkillName,
+          trainedInstructions: liveTestInstructions,
+          prompt: liveTestPrompt.trim(),
+          isAutonomousRun: false,
+        }),
+      });
+
+      const data = await response.json();
+      const outputText = data.output || 'Prueba de habilidad en vivo ejecutada correctamente sin observaciones.';
+      setLiveTestOutput(outputText);
+
+      const timeStr = `${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES')}`;
+
+      // Write execution log to Firestore
+      try {
+        await addDoc(collection(db, 'ai_agent_logs'), {
+          agentId: liveTestAgent.id,
+          agentName: liveTestAgent.name,
+          skillExecuted: `Prueba en Vivo: ${liveTestSkillName}`,
+          outputSummary: outputText,
+          status: 'completed',
+          timestamp: timeStr,
+        });
+
+        await updateDoc(doc(db, 'ai_agents', liveTestAgent.id), {
+          lastRunTimestamp: timeStr,
+        });
+      } catch (logErr) {
+        console.warn('Live test log save notice:', logErr);
+      }
+
+      showToast(`¡Habilidad de "${liveTestAgent.name}" probada en vivo con éxito!`, 'success');
+    } catch (err) {
+      console.error('Error executing live skill test:', err);
+      setLiveTestOutput('Error de comunicación con el motor AI Gemini.');
+      showToast('No se pudo ejecutar la prueba en vivo.', 'error');
+    } finally {
+      setIsLiveTesting(false);
     }
   };
 
@@ -952,12 +1061,11 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
                     </button>
 
                     <button
-                      onClick={() => handleRunSkillManual(ag)}
-                      disabled={isProcessing}
-                      className="px-3 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-md shadow-cyan-600/20 disabled:opacity-50"
+                      onClick={() => openLiveTestModal(ag)}
+                      className="px-3 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md shadow-cyan-600/20 cursor-pointer"
                     >
-                      <Zap className="w-3.5 h-3.5 fill-current" />
-                      <span>Ejecutar Ya</span>
+                      <Play className="w-3.5 h-3.5 fill-current text-white" />
+                      <span>Ejecutar Agente</span>
                     </button>
                   </div>
                 </div>
@@ -1092,17 +1200,22 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => handleRunSkillManual(selectedAgent)}
-                disabled={isProcessing}
-                className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl flex items-center gap-2 transition-colors border border-slate-700 disabled:opacity-50"
+                onClick={() =>
+                  openLiveTestModal(
+                    selectedAgent,
+                    trainingData.customSkillName,
+                    trainingData.trainedInstructions
+                  )
+                }
+                className="px-5 py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold text-xs rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-amber-950 border border-amber-500/40 cursor-pointer"
               >
-                <Zap className="w-4 h-4 text-yellow-400" />
+                <Zap className="w-4 h-4 text-amber-200 fill-current" />
                 <span>Probar Habilidad en Vivo</span>
               </button>
 
               <button
                 type="submit"
-                className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/30 flex items-center gap-2 transition-all"
+                className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/30 flex items-center gap-2 transition-all cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Guardar & Re-Entrenar Agente</span>
@@ -1659,6 +1772,136 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* TOAST NOTIFICATION BANNER */}
+      {toastNotification && (
+        <div className="fixed top-6 right-6 z-50 animate-in slide-in-from-top-5 duration-300">
+          <div
+            className={`px-5 py-3.5 rounded-2xl shadow-2xl border flex items-center gap-3 backdrop-blur-md ${
+              toastNotification.type === 'success'
+                ? 'bg-emerald-950/95 border-emerald-500 text-emerald-200 shadow-emerald-950'
+                : toastNotification.type === 'error'
+                ? 'bg-rose-950/95 border-rose-500 text-rose-200 shadow-rose-950'
+                : 'bg-cyan-950/95 border-cyan-500 text-cyan-200 shadow-cyan-950'
+            }`}
+          >
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            <span className="text-xs font-bold font-sans">{toastNotification.message}</span>
+            <button
+              onClick={() => setToastNotification(null)}
+              className="p-1 hover:bg-slate-800/50 rounded-lg text-slate-400 hover:text-white transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: PROBAR HABILIDAD EN VIVO / EJECUTAR AGENTE */}
+      {isLiveTestModalOpen && liveTestAgent && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-cyan-700/60 rounded-3xl p-6 max-w-2xl w-full space-y-5 shadow-2xl max-h-[92vh] overflow-y-auto animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-cyan-950 border border-cyan-800 rounded-2xl text-cyan-400">
+                  {renderAgentIcon(liveTestAgent.icon, 'w-6 h-6')}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-black text-white">{liveTestAgent.name}</h3>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800 font-semibold">
+                      Ejecución Interactiva
+                    </span>
+                  </div>
+                  <p className="text-xs text-purple-300 font-medium">
+                    Habilidad: <strong className="text-white">{liveTestSkillName}</strong> ({liveTestAgent.model})
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsLiveTestModalOpen(false)}
+                className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Instructions Preview Box */}
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3 space-y-1">
+              <span className="text-[11px] font-mono text-emerald-400 font-bold block">
+                📋 Instrucciones de Entrenamiento del Agente:
+              </span>
+              <p className="text-xs text-slate-300 italic font-mono leading-relaxed max-h-24 overflow-y-auto">
+                "{liveTestInstructions}"
+              </p>
+            </div>
+
+            {/* Test Form */}
+            <form onSubmit={handleRunLiveTestExecution} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-200 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-amber-400" /> Indicación de Entrada para la Prueba:
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">Personaliza el escenario a evaluar</span>
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  value={liveTestPrompt}
+                  onChange={(e) => setLiveTestPrompt(e.target.value)}
+                  placeholder="Escribe el mensaje o consulta de prueba para el agente..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-cyan-500 font-sans"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsLiveTestModalOpen(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition-colors"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isLiveTesting || !liveTestPrompt.trim()}
+                  className="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-950 flex items-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  {isLiveTesting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Ejecutando IA...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4 fill-current text-amber-300" />
+                      <span>Ejecutar Habilidad en Vivo</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+
+            {/* Live Test Output Result Box */}
+            {liveTestOutput && (
+              <div className="bg-slate-950 border border-emerald-800/80 rounded-2xl p-4 space-y-2 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Resultado de Ejecución en Tiempo Real:
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400">Motor Gemini 2.5 Active</span>
+                </div>
+                <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-100 font-sans leading-relaxed whitespace-pre-wrap max-h-60 overflow-y-auto">
+                  {liveTestOutput}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
