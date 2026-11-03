@@ -1,5 +1,6 @@
 export type RoleId =
   | 'admin'
+  | 'inbox'
   | 'accounting'
   | 'support'
   | 'web_dev'
@@ -9,6 +10,20 @@ export type RoleId =
   | 'ai_agents'
   | 'settings'
   | 'firebase_crud';
+
+export interface ContactMessage {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  projectType: string;
+  message: string;
+  status: 'unread' | 'read' | 'replied' | 'archived';
+  source?: 'home_page' | 'contact_page' | string;
+  createdAt: string;
+  replyNotes?: string;
+  repliedAt?: string;
+}
 
 export interface RoleDefinition {
   id: RoleId;

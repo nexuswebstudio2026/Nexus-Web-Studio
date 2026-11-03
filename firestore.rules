@@ -45,5 +45,15 @@ service cloud.firestore {
     match /ai_agent_logs/{logId} {
       allow read, write: if true;
     }
+
+    // Webhook Events Collection
+    match /webhook_events/{eventId} {
+      allow read, write: if true;
+    }
+
+    // Contact Messages Collection (Bandeja de Entrada)
+    match /contact_messages/{messageId} {
+      allow read, write: if true;
+    }
   }
 }

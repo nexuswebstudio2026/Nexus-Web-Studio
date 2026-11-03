@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Building2,
+  Inbox,
   DollarSign,
   LifeBuoy,
   Code,
@@ -23,6 +24,8 @@ import {
 } from 'lucide-react';
 import { UserAccount, RoleId } from '../types';
 import { SYSTEM_ROLES } from '../data/mockData';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 const OFFICIAL_NEXUS_LOGO = '/assets/aistudio/768420689_122100971391434882_47020785483964272_n__1__df72d03a.jpg';
 
@@ -58,9 +61,34 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
   setIsCollapsed,
 }) => {
   const [showPosControls, setShowPosControls] = useState(false);
+  const [unreadInboxCount, setUnreadInboxCount] = useState(0);
+
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+    try {
+      unsubscribe = onSnapshot(
+        collection(db, 'contact_messages'),
+        (snapshot) => {
+          const unread = snapshot.docs.filter((d) => d.data().status === 'unread').length;
+          setUnreadInboxCount(unread);
+        },
+        (err) => console.warn('Sidebar contact_messages notice:', err)
+      );
+    } catch {}
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
 
   const navItems: { id: RoleId; label: string; icon: any; badge?: string }[] = [
     { id: 'admin', label: 'Administración', icon: Building2 },
+    {
+      id: 'inbox',
+      label: 'Bandeja de entrada',
+      icon: Inbox,
+      badge: unreadInboxCount > 0 ? `${unreadInboxCount} N` : undefined,
+    },
     { id: 'firebase_crud', label: 'Base de Datos (CRUD)', icon: Database, badge: 'DB' },
     { id: 'accounting', label: 'Contabilidad', icon: DollarSign },
     { id: 'support', label: 'Atención al cliente', icon: LifeBuoy },

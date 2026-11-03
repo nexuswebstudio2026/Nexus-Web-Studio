@@ -9,6 +9,7 @@ import { GlobalSearchBar } from './components/GlobalSearchBar';
 import { Footer } from './components/Footer';
 
 import { AdminModule } from './components/modules/AdminModule';
+import { InboxModule } from './components/modules/InboxModule';
 import { AccountingModule } from './components/modules/AccountingModule';
 import { SupportModule } from './components/modules/SupportModule';
 import { WebDevModule } from './components/modules/WebDevModule';
@@ -198,6 +199,31 @@ export default function App() {
       unsubProjects = onSnapshot(collection(db, 'projects'), (snapshot) => {
         const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Project));
         setProjects(list);
+
+        // Detect project modifications from external sources/console and emit webhooks
+        if (!snapshot.metadata.hasPendingWrites) {
+          snapshot.docChanges().forEach(async (change) => {
+            if (change.type === 'modified') {
+              const pData = change.doc.data() as Project;
+              const whEvent = {
+                id: `wh_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+                eventType: 'project.updated',
+                projectId: change.doc.id,
+                projectName: pData.name || 'Proyecto Nexus',
+                clientName: pData.clientName || 'Cliente Nexus',
+                status: 'dispatched',
+                triggeredAgentIds: [],
+                summary: `⚡ [WEBHOOK FIRESTORE] Proyecto "${pData.name}" modificado. Avance: ${pData.progress || 0}%, Estado: ${pData.status || 'En Desarrollo'}.`,
+                timestamp: `${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES')}`,
+              };
+              try {
+                await setDoc(doc(db, 'webhook_events', whEvent.id), whEvent);
+              } catch (e) {
+                console.warn('Notice emitting project update webhook:', e);
+              }
+            }
+          });
+        }
       }, (err) => console.warn('Firestore subscription notice [projects]:', err));
 
       unsubInvoices = onSnapshot(collection(db, 'invoices'), (snapshot) => {
@@ -371,22 +397,53 @@ export default function App() {
     setActiveModuleOverride(null);
   };
 
-  // Data update handlers with Firestore sync
+  // Data update handlers with Firestore sync & Webhook Dispatching
   const handleAddProject = async (newPrj: Omit<Project, 'id'>) => {
     const prj: Project = { ...newPrj, id: `prj_${Date.now()}` };
     setProjects((prev) => [prj, ...prev]);
     try {
       await setDoc(doc(db, 'projects', prj.id), prj);
+
+      // Emit Project Created Webhook Event
+      const whEvent = {
+        id: `wh_${Date.now()}`,
+        eventType: 'project.created',
+        projectId: prj.id,
+        projectName: prj.name,
+        clientName: prj.clientName,
+        status: 'dispatched',
+        triggeredAgentIds: [],
+        summary: `✨ [WEBHOOK PROYECTO CREADO] "${prj.name}" para ${prj.clientName}. Presupuesto: $${prj.budget.toLocaleString()} USD.`,
+        timestamp: `${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES')}`,
+      };
+      await setDoc(doc(db, 'webhook_events', whEvent.id), whEvent);
     } catch (err) {
       console.warn('Firestore write error for project:', err);
     }
   };
 
   const handleDeleteProject = async (projectId: string) => {
+    const prjTarget = projects.find((p) => p.id === projectId);
     setProjects((prev) => prev.filter((p) => p.id !== projectId));
     try {
       const { deleteDoc, doc } = await import('firebase/firestore');
       await deleteDoc(doc(db, 'projects', projectId));
+
+      if (prjTarget) {
+        // Emit Project Deleted Webhook Event
+        const whEvent = {
+          id: `wh_${Date.now()}`,
+          eventType: 'project.deleted',
+          projectId,
+          projectName: prjTarget.name,
+          clientName: prjTarget.clientName,
+          status: 'dispatched',
+          triggeredAgentIds: [],
+          summary: `🗑️ [WEBHOOK PROYECTO ELIMINADO] "${prjTarget.name}" fue eliminado de la base de datos de Firebase.`,
+          timestamp: `${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES')}`,
+        };
+        await setDoc(doc(db, 'webhook_events', whEvent.id), whEvent);
+      }
     } catch (err) {
       console.warn('Firestore delete error for project:', err);
     }
@@ -628,6 +685,10 @@ export default function App() {
                   onAddProject={handleAddProject}
                   onDeleteProject={handleDeleteProject}
                 />
+              )}
+
+              {activeModuleRole === 'inbox' && (
+                <InboxModule currentUser={currentUser} />
               )}
 
               {activeModuleRole === 'accounting' && (

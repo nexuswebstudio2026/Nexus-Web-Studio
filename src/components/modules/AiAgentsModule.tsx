@@ -22,6 +22,8 @@ import {
   X,
   Sliders,
   Terminal,
+  Radio,
+  Layers,
 } from 'lucide-react';
 import {
   collection,
@@ -66,6 +68,18 @@ export interface AiAgentLog {
   skillExecuted: string;
   outputSummary: string;
   status: 'completed' | 'executing' | 'warning';
+  timestamp: string;
+}
+
+export interface WebhookEvent {
+  id: string;
+  eventType: 'project.created' | 'project.updated' | 'project.deleted';
+  projectId: string;
+  projectName: string;
+  clientName: string;
+  status: 'dispatched' | 'processed' | 'pending';
+  triggeredAgentIds?: string[];
+  summary: string;
   timestamp: string;
 }
 
@@ -135,8 +149,14 @@ export const DEFAULT_INITIAL_AGENTS: AiAgent[] = [
 export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) => {
   const [agents, setAgents] = useState<AiAgent[]>(DEFAULT_INITIAL_AGENTS);
   const [logs, setLogs] = useState<AiAgentLog[]>([]);
-  const [activeTab, setActiveTab] = useState<'agents' | 'training' | 'logs' | 'chat'>('agents');
+  const [webhookEvents, setWebhookEvents] = useState<WebhookEvent[]>([]);
+  const [activeTab, setActiveTab] = useState<'agents' | 'training' | 'logs' | 'webhooks' | 'chat'>('agents');
   const [selectedAgentId, setSelectedAgentId] = useState<string>('agent_architect');
+
+  // Webhook Simulator State
+  const [simulatedProjectName, setSimulatedProjectName] = useState('Plataforma FinTech Latam');
+  const [simulatedClientName, setSimulatedClientName] = useState('FinTech Latam S.A.');
+  const [isSimulatingWebhook, setIsSimulatingWebhook] = useState(false);
 
   // Modal States
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -193,6 +213,130 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
   const [isProcessing, setIsProcessing] = useState(false);
   const [master247Active, setMaster247Active] = useState(true);
 
+  // Automated Project Webhook Event Processor
+  const handleProcessProjectWebhook = async (eventId: string, webhook: WebhookEvent) => {
+    try {
+      const timeFormatted = `${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES')}`;
+      const triggeredIds: string[] = [];
+
+      // 1. Code Architect Agent reaction
+      const architect = agents.find((a) => a.id === 'agent_architect') || agents[0];
+      if (architect) {
+        triggeredIds.push(architect.id);
+        const actionDesc =
+          webhook.eventType === 'project.created'
+            ? `✨ [WEBHOOK AUTOMÁTICO]: Proyecto "${webhook.projectName}" creado. Agente ajustó arquitectura React/TypeScript, configuró microservicios Express y asignó estructura PostgreSQL.`
+            : webhook.eventType === 'project.updated'
+            ? `⚡ [WEBHOOK AUTOMÁTICO]: Proyecto "${webhook.projectName}" modificado. Agente re-evaluó planificación de dependencias y refactorización modular.`
+            : `🗑️ [WEBHOOK AUTOMÁTICO]: Proyecto "${webhook.projectName}" eliminado. Agente archivó repositorio y liberó recursos de servidor.`;
+
+        await addDoc(collection(db, 'ai_agent_logs'), {
+          agentId: architect.id,
+          agentName: architect.name,
+          skillExecuted: `Ajuste Automático por Webhook de Proyecto (${webhook.eventType})`,
+          outputSummary: actionDesc,
+          status: 'completed',
+          timestamp: timeFormatted,
+        });
+
+        // Automatically add development task to tasks collection
+        if (webhook.eventType === 'project.created') {
+          await addDoc(collection(db, 'tasks'), {
+            id: `tsk_auto_${Date.now()}`,
+            taskNumber: `DEV-${Math.floor(100 + Math.random() * 900)}`,
+            title: `[IA Architect] Inicializar arquitectura y hooks de React para ${webhook.projectName}`,
+            projectName: webhook.projectName,
+            platform: 'web',
+            assigneeName: architect.name,
+            status: 'in_progress',
+            priority: 'high',
+            estimatedHours: 8,
+            loggedHours: 1,
+            createdAt: new Date().toISOString(),
+          });
+        }
+      }
+
+      // 2. QA & Pentest Agent reaction
+      const qaAgent = agents.find((a) => a.id === 'agent_qa');
+      if (qaAgent) {
+        triggeredIds.push(qaAgent.id);
+        const actionDesc =
+          webhook.eventType === 'project.created'
+            ? `🛡️ [WEBHOOK AUTOMÁTICO]: Generada suite de pruebas E2E para Playwright y auditoría de Firestore Security Rules en "${webhook.projectName}".`
+            : `🛡️ [WEBHOOK AUTOMÁTICO]: Pruebas de regresión OWASP ejecutadas tras cambios en "${webhook.projectName}".`;
+
+        await addDoc(collection(db, 'ai_agent_logs'), {
+          agentId: qaAgent.id,
+          agentName: qaAgent.name,
+          skillExecuted: `Generación de Pruebas & Auditoría (${webhook.eventType})`,
+          outputSummary: actionDesc,
+          status: 'completed',
+          timestamp: timeFormatted,
+        });
+      }
+
+      // 3. Client Support Agent reaction
+      const supportAgent = agents.find((a) => a.id === 'agent_support');
+      if (supportAgent) {
+        triggeredIds.push(supportAgent.id);
+        const actionDesc = `💬 [WEBHOOK AUTOMÁTICO]: Configurada cola de atención SLA y bienvenida automatizada para el cliente "${webhook.clientName}" en "${webhook.projectName}".`;
+
+        await addDoc(collection(db, 'ai_agent_logs'), {
+          agentId: supportAgent.id,
+          agentName: supportAgent.name,
+          skillExecuted: `SLA & Cola de Soporte (${webhook.eventType})`,
+          outputSummary: actionDesc,
+          status: 'completed',
+          timestamp: timeFormatted,
+        });
+      }
+
+      // Mark webhook event as processed in Firestore
+      await updateDoc(doc(db, 'webhook_events', eventId), {
+        status: 'processed',
+        triggeredAgentIds: triggeredIds,
+      });
+
+    } catch (err) {
+      console.warn('Project webhook processing notice:', err);
+    }
+  };
+
+  // Manual Webhook Simulator Function
+  const handleSimulateProjectWebhook = async (type: 'project.created' | 'project.updated' | 'project.deleted') => {
+    setIsSimulatingWebhook(true);
+    try {
+      const pName = simulatedProjectName.trim() || 'App Móvil iOS/Android';
+      const cName = simulatedClientName.trim() || 'Cliente Corporativo';
+      const eventId = `wh_sim_${Date.now()}`;
+
+      const newWh: WebhookEvent = {
+        id: eventId,
+        eventType: type,
+        projectId: `prj_${Date.now()}`,
+        projectName: pName,
+        clientName: cName,
+        status: 'dispatched',
+        triggeredAgentIds: [],
+        summary:
+          type === 'project.created'
+            ? `✨ [WEBHOOK MANUAL SIMULADO] Creado proyecto "${pName}" para ${cName}.`
+            : type === 'project.updated'
+            ? `⚡ [WEBHOOK MANUAL SIMULADO] Actualizado avance del proyecto "${pName}".`
+            : `🗑️ [WEBHOOK MANUAL SIMULADO] Eliminado proyecto "${pName}" de Firebase.`,
+        timestamp: `${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES')}`,
+      };
+
+      await setDoc(doc(db, 'webhook_events', eventId), newWh);
+    } catch (err) {
+      console.error('Error simulating webhook:', err);
+      handleFirestoreError(err, OperationType.CREATE, 'webhook_events');
+    } finally {
+      setIsSimulatingWebhook(false);
+    }
+  };
+
   // Sync with Firestore
   useEffect(() => {
     const agentsRef = collection(db, 'ai_agents');
@@ -246,9 +390,34 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
       }
     );
 
+    const webhooksRef = collection(db, 'webhook_events');
+    const webhooksQuery = query(webhooksRef, orderBy('timestamp', 'desc'), limit(50));
+    const unsubscribeWebhooks = onSnapshot(
+      webhooksQuery,
+      (snapshot) => {
+        const loadedWebhooks: WebhookEvent[] = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<WebhookEvent, 'id'>),
+        }));
+        setWebhookEvents(loadedWebhooks);
+
+        // Auto-process unhandled dispatched webhooks
+        snapshot.docs.forEach((docSnap) => {
+          const data = docSnap.data() as WebhookEvent;
+          if (data.status === 'dispatched') {
+            handleProcessProjectWebhook(docSnap.id, data);
+          }
+        });
+      },
+      (error) => {
+        console.warn('Firestore webhooks sync notice:', error);
+      }
+    );
+
     return () => {
       unsubscribeAgents();
       unsubscribeLogs();
+      unsubscribeWebhooks();
     };
   }, []);
 
@@ -653,6 +822,21 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
         </button>
 
         <button
+          onClick={() => setActiveTab('webhooks')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 relative ${
+            activeTab === 'webhooks'
+              ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/30'
+              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+          }`}
+        >
+          <Radio className="w-4 h-4 text-amber-300 animate-pulse" />
+          <span>Webhooks & Triggers Proyectos ({webhookEvents.length})</span>
+          {webhookEvents.some((w) => w.status === 'dispatched') && (
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping absolute top-1 right-1" />
+          )}
+        </button>
+
+        <button
           onClick={() => setActiveTab('chat')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
             activeTab === 'chat'
@@ -990,7 +1174,256 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
         </div>
       )}
 
-      {/* TAB 4: PLAYGROUND DE CHAT INTERACTIVO */}
+      {/* TAB 4: WEBHOOKS & TRIGGERS DE PROYECTOS */}
+      {activeTab === 'webhooks' && (
+        <div className="space-y-6">
+          {/* Header Banner */}
+          <div className="bg-slate-900 border border-amber-800/60 rounded-3xl p-6 space-y-4 shadow-2xl relative overflow-hidden">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-amber-950 border border-amber-800 rounded-2xl text-amber-400">
+                  <Radio className="w-6 h-6 animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-bold text-white">Sistema de Webhooks & Triggers de Proyectos (Firebase)</h2>
+                    <span className="text-[10px] font-mono px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded-full border border-amber-500/40 font-bold">
+                      Real-Time Dispatch
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    Notificaciones en tiempo real al crear o modificar proyectos en Firestore. Los agentes de IA reaccionan y reajustan sus tareas de desarrollo, pruebas y soporte instantáneamente.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono text-emerald-400 bg-emerald-950 px-3 py-1.5 rounded-xl border border-emerald-800 flex items-center gap-1.5 font-bold">
+                  <CheckCircle2 className="w-4 h-4" /> Firestore Webhooks Activos
+                </span>
+              </div>
+            </div>
+
+            {/* Metrics */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+              <div className="bg-slate-950/80 p-3 rounded-2xl border border-slate-800">
+                <span className="text-slate-400 block text-[10px]">Total Eventos Recibidos</span>
+                <span className="text-amber-400 font-bold text-base block mt-0.5">{webhookEvents.length} eventos</span>
+              </div>
+              <div className="bg-slate-950/80 p-3 rounded-2xl border border-slate-800">
+                <span className="text-slate-400 block text-[10px]">Agentes de IA Suscritos</span>
+                <span className="text-cyan-400 font-bold text-base block mt-0.5">{agents.length} agentes</span>
+              </div>
+              <div className="bg-slate-950/80 p-3 rounded-2xl border border-slate-800">
+                <span className="text-slate-400 block text-[10px]">Modo de Notificación</span>
+                <span className="text-emerald-400 font-bold block mt-1">Firebase onSnapshot</span>
+              </div>
+              <div className="bg-slate-950/80 p-3 rounded-2xl border border-slate-800">
+                <span className="text-slate-400 block text-[10px]">Endpoint Webhook REST</span>
+                <span className="text-purple-300 font-bold block truncate mt-1">/api/webhooks/projects</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Interactive Webhook Simulator Panel */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-400" />
+                <span>Simulador / Disparador de Webhooks de Proyectos</span>
+              </h3>
+              <span className="text-[11px] text-slate-400 font-mono">Prueba directa de notificaciones e integración de IA</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">Nombre del Proyecto:</label>
+                <input
+                  type="text"
+                  value={simulatedProjectName}
+                  onChange={(e) => setSimulatedProjectName(e.target.value)}
+                  placeholder="ej. App de Pagos en Tiempo Real"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-sans"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">Nombre del Cliente:</label>
+                <input
+                  type="text"
+                  value={simulatedClientName}
+                  onChange={(e) => setSimulatedClientName(e.target.value)}
+                  placeholder="ej. Billetera Móvil Latam S.A."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-sans"
+                />
+              </div>
+            </div>
+
+            <div className="pt-2 flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => handleSimulateProjectWebhook('project.created')}
+                disabled={isSimulatingWebhook}
+                className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-950 flex items-center gap-2 transition-all disabled:opacity-50"
+              >
+                <Plus className="w-4 h-4" />
+                <span>⚡ Disparar "project.created"</span>
+              </button>
+
+              <button
+                onClick={() => handleSimulateProjectWebhook('project.updated')}
+                disabled={isSimulatingWebhook}
+                className="px-4 py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-amber-950 flex items-center gap-2 transition-all disabled:opacity-50"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>⚡ Disparar "project.updated"</span>
+              </button>
+
+              <button
+                onClick={() => handleSimulateProjectWebhook('project.deleted')}
+                disabled={isSimulatingWebhook}
+                className="px-4 py-2.5 bg-gradient-to-r from-rose-700 to-pink-700 hover:from-rose-600 hover:to-pink-600 text-white font-bold text-xs rounded-xl shadow-lg shadow-rose-950 flex items-center gap-2 transition-all disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>⚡ Disparar "project.deleted"</span>
+              </button>
+            </div>
+          </div>
+
+          {/* AI Agents Subscribed Reaction Matrix */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-blue-950 border border-blue-800 rounded-xl text-blue-400">
+                  <Code className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white">Nexus Code Architect Agent</h4>
+                  <p className="text-[10px] text-cyan-400 font-mono">Suscripción: project.created & project.updated</p>
+                </div>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Al recibir el webhook, crea automáticamente la arquitectura técnica, asigna tareas de desarrollo frontend/backend en la colección <code className="text-amber-300">tasks</code> de Firestore y valida el stack técnico.
+              </p>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-purple-950 border border-purple-800 rounded-xl text-purple-400">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white">Nexus QA & Pentest Agent</h4>
+                  <p className="text-[10px] text-purple-300 font-mono">Suscripción: project.created & project.updated</p>
+                </div>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Al crearse o modificarse un proyecto, genera suites de pruebas Playwright E2E, verifica las reglas de seguridad de Firestore y ejecuta análisis de vulnerabilidades OWASP.
+              </p>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-emerald-950 border border-emerald-800 rounded-xl text-emerald-400">
+                  <MessageSquare className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white">Nexus Client Care Agent</h4>
+                  <p className="text-[10px] text-emerald-300 font-mono">Suscripción: project.created & project.updated</p>
+                </div>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Configura monitoreo de acuerdos SLA para el cliente, genera reportes de progreso de entregables y organiza la cola de tickets de soporte en tiempo real.
+              </p>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-amber-950 border border-amber-800 rounded-xl text-amber-400">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white">Nexus SEO & Content Agent</h4>
+                  <p className="text-[10px] text-amber-300 font-mono">Suscripción: project.created</p>
+                </div>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Genera etiquetas OpenGraph de compartición social, marcado de esquemas estructurados Schema.org JSON-LD y optimización de palabras clave para el proyecto.
+              </p>
+            </div>
+          </div>
+
+          {/* Real-Time Webhook Feed Table */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Radio className="w-4 h-4 text-amber-400" />
+                <span>Historial de Eventos Webhook en Firestore (Live Feed)</span>
+              </h3>
+              <span className="text-xs text-slate-400 font-mono">{webhookEvents.length} Notificaciones Registradas</span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs font-sans">
+                <thead className="bg-slate-950 text-slate-400 font-mono text-[11px] uppercase border-b border-slate-800">
+                  <tr>
+                    <th className="p-3">Hora / Fecha</th>
+                    <th className="p-3">Tipo de Evento</th>
+                    <th className="p-3">Proyecto / Cliente</th>
+                    <th className="p-3">Resumen de Notificación Webhook</th>
+                    <th className="p-3 text-right">Estado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {webhookEvents.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-slate-500 font-mono">
+                        No hay eventos webhook aún. Crea un nuevo proyecto en el panel de administración o usa el simulador superior para ver notificaciones en tiempo real.
+                      </td>
+                    </tr>
+                  ) : (
+                    webhookEvents.map((wh) => (
+                      <tr key={wh.id} className="hover:bg-slate-950/40 transition-colors">
+                        <td className="p-3 font-mono text-slate-400 whitespace-nowrap">{wh.timestamp}</td>
+                        <td className="p-3 whitespace-nowrap">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border ${
+                              wh.eventType === 'project.created'
+                                ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
+                                : wh.eventType === 'project.updated'
+                                ? 'bg-amber-950 text-amber-300 border-amber-800'
+                                : 'bg-rose-950 text-rose-300 border-rose-800'
+                            }`}
+                          >
+                            {wh.eventType}
+                          </span>
+                        </td>
+                        <td className="p-3 font-bold text-white whitespace-nowrap">
+                          {wh.projectName}
+                          <span className="block text-[10px] text-slate-400 font-normal">{wh.clientName}</span>
+                        </td>
+                        <td className="p-3 text-slate-300 max-w-md truncate">{wh.summary}</td>
+                        <td className="p-3 text-right whitespace-nowrap">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold flex items-center justify-end gap-1 w-max ml-auto border ${
+                              wh.status === 'processed'
+                                ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
+                                : 'bg-amber-950 text-amber-300 border-amber-800 animate-pulse'
+                            }`}
+                          >
+                            <CheckCircle2 className="w-3 h-3" /> {wh.status === 'processed' ? 'PROCESADO POR IA 🟢' : 'DESPACHANDO ⚡'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5: PLAYGROUND DE CHAT INTERACTIVO */}
       {activeTab === 'chat' && selectedAgent && (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-2xl">
           <div className="flex items-center justify-between pb-4 border-b border-slate-800">

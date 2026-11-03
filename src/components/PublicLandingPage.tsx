@@ -40,6 +40,8 @@ import fintechImg from '../assets/images/project_thumbnail_fintech_1793475053693
 const logoImg = '/assets/aistudio/768420689_122100971391434882_47020785483964272_n__1__df72d03a.jpg';
 import { MOCK_PROJECTS } from '../data/mockData';
 import { Project } from '../types';
+import { doc, setDoc } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 
 interface PublicLandingPageProps {
   projects?: Project[];
@@ -96,46 +98,31 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
     if (!contactName || !contactEmail || !contactMessage) return;
 
     setIsSubmitting(true);
-    setEmailStatusText('Despachando correo a Nexus Web Studio...');
+    setEmailStatusText('Registrando mensaje en la base de datos de Firebase...');
+
+    const msgId = `msg_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const msgSource = publicSection === 'contactanos' ? 'contact_page' : 'home_page';
+
+    const newMessage = {
+      id: msgId,
+      name: contactName,
+      email: contactEmail,
+      phone: contactPhone || '',
+      projectType: contactProjectType,
+      message: contactMessage,
+      status: 'unread',
+      source: msgSource,
+      createdAt: new Date().toISOString(),
+    };
 
     try {
-      // 1. Send data to backend SMTP API endpoint
-      const response = await fetch('/api/contact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: contactName,
-          email: contactEmail,
-          phone: contactPhone,
-          projectType: contactProjectType,
-          message: contactMessage,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        setEmailStatusText('¡Correo enviado exitosamente a nexuswebstudio2026@gmail.com!');
-      } else {
-        console.warn('Backend Email response:', data);
-        setEmailStatusText('Notificación procesada.');
-      }
+      await setDoc(doc(db, 'contact_messages', msgId), newMessage);
+      setEmailStatusText('¡Mensaje enviado con éxito! Se ha recibido en la Bandeja de Entrada del Panel de Administración en tiempo real.');
     } catch (err) {
-      console.error('Error al contactar servidor:', err);
-      setEmailStatusText('Envío procesado.');
+      console.error('Error enviando mensaje a Firebase:', err);
+      handleFirestoreError(err, OperationType.WRITE, `contact_messages/${msgId}`);
+      setEmailStatusText('Error al enviar el mensaje. Por favor intente nuevamente.');
     }
-
-    // 2. Open WhatsApp API with pre-formatted message
-    const formattedWaText = `Hola Nexus Web Studio! Mi nombre es ${contactName}.
-*Correo:* ${contactEmail}
-*Teléfono:* ${contactPhone || 'No especificado'}
-*Tipo de Proyecto:* ${contactProjectType}
-*Descripción:* ${contactMessage}`;
-
-    const whatsappUrl = `https://api.whatsapp.com/send?phone=${NEXUS_WHATSAPP_PHONE}&text=${encodeURIComponent(formattedWaText)}`;
-    
-    // Open WhatsApp
-    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
 
     setIsSubmitting(false);
     setContactSubmitted(true);
@@ -676,7 +663,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
         </section>
       )}
 
-      {/* SECTION 4: CONTÁCTANOS CON ENVÍO A CORREO SMTP Y WHATSAPP DIRECTO */}
+      {/* SECTION 4: CONTÁCTANOS CON ENVÍO DIRECTO A BANDEJA DE ENTRADA FIRESTORE */}
       {(publicSection === 'contactanos' || publicSection === 'inicio') && (
         <section className="bg-slate-900 border border-slate-800 rounded-3xl p-8 space-y-8 shadow-2xl">
           
@@ -684,7 +671,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
             <span className="text-xs font-mono text-indigo-400 font-bold uppercase tracking-wider">Atención Directa & Cotizaciones</span>
             <h2 className="text-2xl font-extrabold text-white">Contáctanos en Nexus Web Studio</h2>
             <p className="text-xs text-slate-400">
-              Al enviar tu mensaje, se despachará una notificación por correo electrónico a Nexus Web Studio y se abrirá automáticamente WhatsApp con los datos de tu consulta.
+              Al enviar tu mensaje, se registrará instantáneamente en la base de datos de Firebase y se reflejará en tiempo real en la Bandeja de Entrada del Panel de Administración.
             </p>
           </div>
 
@@ -695,26 +682,26 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
               <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
                   <Mail className="w-4 h-4 text-indigo-400" />
-                  <span>Formulario de Contacto (Correo & WhatsApp)</span>
+                  <span>Formulario de Contacto Directo</span>
                 </h3>
-                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800 flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" /> API WhatsApp +57 3043470984
+                <span className="text-[10px] font-mono text-indigo-400 bg-indigo-950/80 px-2 py-0.5 rounded border border-indigo-800 flex items-center gap-1">
+                  <Database className="w-3 h-3" /> Firebase Sync Activo
                 </span>
               </div>
 
               {contactSubmitted ? (
                 <div className="p-6 bg-emerald-950/60 border border-emerald-800 rounded-2xl text-center space-y-3 animate-in fade-in">
                   <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto" />
-                  <h4 className="text-base font-bold text-white">¡Mensaje Enviado Exitosamente!</h4>
+                  <h4 className="text-base font-bold text-white">¡Mensaje Enviado a la Bandeja de Entrada!</h4>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    {emailStatusText || 'Tu mensaje fue procesado para correo electrónico y la ventana de WhatsApp API se abrió automáticamente.'}
+                    {emailStatusText || 'Tu mensaje se ha recibido en tiempo real en el módulo Bandeja de Entrada del panel de administración.'}
                   </p>
                   <button
                     onClick={handleDirectWhatsAppClick}
                     className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 mx-auto"
                   >
                     <MessageSquare className="w-4 h-4" />
-                    <span>Re-abrir Chat de WhatsApp (+57 3043470984)</span>
+                    <span>Contactar por WhatsApp (+57 3043470984)</span>
                   </button>
                 </div>
               ) : (

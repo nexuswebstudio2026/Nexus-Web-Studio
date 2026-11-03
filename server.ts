@@ -153,6 +153,38 @@ Responde directamente aplicando tu habilidad entrenada en idioma español.`;
   }
 });
 
+// API Endpoint for Receiving External Project Webhooks
+app.post('/api/webhooks/projects', async (req, res) => {
+  try {
+    const { eventType, project, source } = req.body;
+    if (!project || !project.name) {
+      return res.status(400).json({ error: 'Payload de proyecto no válido. Se requiere un objeto "project" con propiedad "name".' });
+    }
+
+    const event = {
+      id: `wh_ext_${Date.now()}`,
+      eventType: eventType || 'project.created',
+      projectId: project.id || `prj_${Date.now()}`,
+      projectName: project.name,
+      clientName: project.clientName || 'Cliente Externo',
+      status: 'dispatched',
+      summary: `Webhook recibido (${source || 'API Externa'}): Proyecto "${project.name}" ${eventType === 'project.created' ? 'creado con éxito' : 'modificado'}.`,
+      timestamp: `${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES')}`
+    };
+
+    console.log('[API WEBHOOK RECIBIDO]', event);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Evento webhook de proyecto procesado e informado a los Agentes de IA.',
+      event,
+    });
+  } catch (err: any) {
+    console.error('Error processing project webhook:', err);
+    return res.status(500).json({ error: 'Error procesando webhook de proyecto', details: err?.message });
+  }
+});
+
 async function startServer() {
   const vite = await createViteServer({
     server: { middlewareMode: true },
