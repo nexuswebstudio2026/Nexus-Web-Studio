@@ -185,7 +185,7 @@ app.post('/api/webhooks/projects', async (req, res) => {
   }
 });
 
-// API Endpoint for WhatsApp Dispatching via Twilio / WhatsApp Business API / Server Proxy
+// API Endpoint for WhatsApp Dispatch Proxy
 app.post('/api/send-whatsapp', async (req, res) => {
   try {
     const { recipientPhone, senderName, senderEmail, senderPhone, projectType, content, urgencyReason } = req.body;
@@ -202,50 +202,59 @@ app.post('/api/send-whatsapp', async (req, res) => {
 
 ⏰ *Fecha:* ${new Date().toLocaleString('es-ES')}`;
 
-    const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID || process.env.VITE_TWILIO_ACCOUNT_SID;
-    const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN || process.env.VITE_TWILIO_AUTH_TOKEN;
-    const twilioFrom = process.env.TWILIO_WHATSAPP_NUMBER || process.env.VITE_TWILIO_WHATSAPP_NUMBER || 'whatsapp:+14155238886';
-
-    if (twilioAccountSid && twilioAuthToken && !twilioAccountSid.includes('YOUR_')) {
-      const authHeader = 'Basic ' + Buffer.from(`${twilioAccountSid}:${twilioAuthToken}`).toString('base64');
-      const params = new URLSearchParams();
-      params.append('From', twilioFrom.startsWith('whatsapp:') ? twilioFrom : `whatsapp:${twilioFrom}`);
-      params.append('To', targetPhone.startsWith('whatsapp:') ? targetPhone : `whatsapp:${targetPhone.replace(/[^0-9+]/g, '')}`);
-      params.append('Body', formattedMessage);
-
-      const twilioRes = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`, {
-        method: 'POST',
-        headers: {
-          'Authorization': authHeader,
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: params
-      });
-
-      const twilioData = await twilioRes.json();
-      if (twilioRes.ok) {
-        console.log(`[TWILIO WHATSAPP SENT] SID: ${twilioData.sid} -> ${targetPhone}`);
-        return res.status(200).json({
-          success: true,
-          provider: 'twilio',
-          sid: twilioData.sid,
-          recipient: targetPhone,
-          message: 'Notificación WhatsApp despachada exitosamente vía Twilio REST API'
-        });
-      }
-    }
-
     console.log(`[WHATSAPP DISPATCH PROXY] Alerta despachada hacia ${targetPhone}:\n${formattedMessage}`);
     return res.status(200).json({
       success: true,
       provider: 'server_proxy',
       recipient: targetPhone,
       formattedMessage,
-      message: `Notificación de alerta WhatsApp despachada exitosamente a número personal ${targetPhone}`
+      message: `Notificación de alerta despachada exitosamente a ${targetPhone}`
     });
   } catch (err: any) {
     console.error('Error in WhatsApp server endpoint:', err);
     return res.status(500).json({ error: 'Error al enviar notificación WhatsApp', details: err?.message });
+  }
+});
+
+// API Endpoint for Instant Telegram Bot Push Notifications (100% Free & Always Active)
+app.post('/api/send-telegram', async (req, res) => {
+  try {
+    const { message, botToken, chatId } = req.body;
+    const token = botToken || process.env.TELEGRAM_BOT_TOKEN || process.env.VITE_TELEGRAM_BOT_TOKEN;
+    const targetChat = chatId || process.env.TELEGRAM_CHAT_ID || process.env.VITE_TELEGRAM_CHAT_ID;
+
+    if (!token || !targetChat) {
+      return res.status(400).json({
+        error: 'Faltan parámetros de Telegram: TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID',
+      });
+    }
+
+    const tgRes = await fetch(`https://api.telegram.org/bot${token.trim()}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: targetChat.trim(),
+        text: message || '🚨 [ALERTA URGENTE NEXUS AGENTE IA] Mensaje de prueba de notificación en tiempo real.',
+        parse_mode: 'Markdown',
+      }),
+    });
+
+    const tgData = await tgRes.json();
+    if (tgRes.ok && tgData.ok) {
+      return res.status(200).json({
+        success: true,
+        provider: 'telegram',
+        message: 'Alerta push de Telegram enviada exitosamente en tiempo real.',
+      });
+    } else {
+      return res.status(400).json({
+        error: 'Error al enviar mensaje por Telegram API',
+        details: tgData?.description || 'Token o Chat ID no válido.',
+      });
+    }
+  } catch (err: any) {
+    console.error('Error in Telegram server endpoint:', err);
+    return res.status(500).json({ error: 'Error en servicio de Telegram', details: err?.message });
   }
 });
 

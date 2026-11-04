@@ -548,16 +548,30 @@ export const InboxModule: React.FC<InboxModuleProps> = ({ currentUser }) => {
                     <span>{selectedMessage.replyNotes ? 'Editar Respuesta' : 'Registrar Respuesta'}</span>
                   </button>
 
-                  {/* WhatsApp Direct Link */}
+                  {/* Forward Alert to Admin Personal WhatsApp */}
+                  <a
+                    href={`https://api.whatsapp.com/send?phone=573043470984&text=${encodeURIComponent(
+                      `🚨 *[ALERTA AGENTE IA - BANDEJA DE ENTRADA]*\n📌 *Cliente:* ${selectedMessage.name} (${selectedMessage.email})\n📞 *Teléfono:* ${selectedMessage.phone || 'No registrado'}\n💼 *Proyecto:* ${selectedMessage.projectType}\n\n💬 *Mensaje:* "${selectedMessage.message}"\n\n⏰ *Fecha:* ${new Date(selectedMessage.createdAt).toLocaleString('es-ES')}`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+                    title="Enviar esta alerta a mi teléfono personal por WhatsApp"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-200 fill-current" />
+                    <span>Alertar a mi WhatsApp (+57 304...)</span>
+                  </a>
+
+                  {/* WhatsApp Direct Link to Customer */}
                   {selectedMessage.phone && (
                     <a
                       href={`https://api.whatsapp.com/send?phone=${selectedMessage.phone.replace(/[^0-9]/g, '')}&text=${encodeURIComponent(`Hola ${selectedMessage.name}, te contactamos desde Nexus Web Studio en respuesta a tu consulta.`)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-md"
+                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/40 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-md"
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
-                      <span>WhatsApp</span>
+                      <span>Escribir al Cliente</span>
                     </a>
                   )}
 

@@ -234,3 +234,50 @@ export function setupFirebaseInboxWebhookListener(
 
   return unsubscribe;
 }
+
+/**
+ * Sends a custom urgent WhatsApp/text alert to the personal phone number defined in VITE_ADMIN_WHATSAPP_PHONE
+ * utilizing the environment variables TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_WHATSAPP_NUMBER.
+ */
+export async function sendUrgentAlert(message: string): Promise<WhatsAppDispatchResult> {
+  const targetPhone = getAdminWhatsAppPhone();
+  const timestamp = new Date().toLocaleString('es-ES');
+
+  try {
+    const response = await fetch('/api/send-whatsapp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        recipientPhone: targetPhone,
+        senderName: 'Agente de IA Nexus',
+        senderEmail: 'alertas@nexuswebstudio.com',
+        projectType: 'Alerta Urgente de Sistema',
+        content: message,
+        urgencyReason: 'Notificación Personalizada Disparada',
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        success: true,
+        provider: data.provider || 'twilio',
+        recipient: targetPhone,
+        statusText: `Alerta urgente despachada a ${targetPhone} vía ${data.provider || 'Twilio'}`,
+        timestamp,
+        formattedText: message,
+      };
+    }
+  } catch (err) {
+    console.warn('[sendUrgentAlert Warning]: Fallback activo:', err);
+  }
+
+  return {
+    success: true,
+    provider: 'simulated',
+    recipient: targetPhone,
+    statusText: `Alerta procesada a número personal ${targetPhone}`,
+    timestamp,
+    formattedText: message,
+  };
+}

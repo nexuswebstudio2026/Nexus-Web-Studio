@@ -24,6 +24,17 @@ import {
   Terminal,
   Radio,
   Layers,
+  Globe,
+  Laptop,
+  Smartphone,
+  Wifi,
+  ArrowLeft,
+  Copy,
+  ExternalLink,
+  QrCode,
+  Power,
+  Lock,
+  Check,
 } from 'lucide-react';
 import {
   collection,
@@ -44,7 +55,9 @@ import {
   sendWhatsAppNotification,
   getAdminWhatsAppPhone,
   checkAndTriggerUrgentWhatsAppAlert,
+  sendUrgentAlert,
 } from '../../lib/webhookHandlers';
+import { WebBrowserView } from '../WebBrowserView';
 
 
 interface AiAgentsModuleProps {
@@ -66,6 +79,10 @@ export interface AiAgent {
   isAutonomous247: boolean;
   lastRunTimestamp?: string;
   createdAt?: string;
+  whatsappStatus?: 'disconnected' | 'qr_ready' | 'connecting' | 'connected';
+  whatsappPhone?: string;
+  whatsappPairedAt?: string;
+  whatsappSessionId?: string;
 }
 
 export interface AiAgentLog {
@@ -157,8 +174,9 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
   const [agents, setAgents] = useState<AiAgent[]>(DEFAULT_INITIAL_AGENTS);
   const [logs, setLogs] = useState<AiAgentLog[]>([]);
   const [webhookEvents, setWebhookEvents] = useState<WebhookEvent[]>([]);
-  const [activeTab, setActiveTab] = useState<'agents' | 'training' | 'logs' | 'webhooks' | 'chat'>('agents');
+  const [activeTab, setActiveTab] = useState<'agents' | 'browser' | 'training' | 'logs' | 'webhooks' | 'chat'>('agents');
   const [selectedAgentId, setSelectedAgentId] = useState<string>('agent_architect');
+  const [browserStartUrl, setBrowserStartUrl] = useState<string>('https://web.whatsapp.com');
 
   // Webhook Simulator State
   const [simulatedProjectName, setSimulatedProjectName] = useState('Plataforma FinTech Latam');
@@ -199,6 +217,120 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
     setLiveTestPrompt(`Ejecutar la habilidad "${skillName}" y generar un análisis de estado.`);
     setLiveTestOutput(null);
     setIsLiveTestModalOpen(true);
+  };
+
+  // Agent Detail & WhatsApp Browser Preview Page State
+  const [activeAgentDetail, setActiveAgentDetail] = useState<AiAgent | null>(null);
+  const [browserUrl, setBrowserUrl] = useState<string>('');
+  const [isPairingWhatsApp, setIsPairingWhatsApp] = useState(false);
+  const [pairedPhoneNumber, setPairedPhoneNumber] = useState('+573043470984');
+  const [customTestMessage, setCustomTestMessage] = useState('');
+  const [whatsappChatLog, setWhatsappChatLog] = useState<{ sender: 'agent' | 'user' | 'system'; text: string; time: string }[]>([]);
+
+  // Open Agent Detail View with Browser Preview
+  const openAgentDetailView = (agent: AiAgent) => {
+    setActiveAgentDetail(agent);
+    setBrowserUrl(`https://web.whatsapp.com/session/agent_${agent.id}`);
+    setWhatsappChatLog([
+      {
+        sender: 'system',
+        text: `Sesión de WhatsApp del Agente "${agent.name}" iniciada.`,
+        time: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+      },
+      {
+        sender: 'agent',
+        text: `Hola, soy ${agent.name}. Estoy vinculado 24/7 para enviar y responder mensajes en WhatsApp aplicando mi habilidad "${agent.customSkillName}".`,
+        time: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+      },
+    ]);
+  };
+
+  // Connect / Pair WhatsApp Session for Agent
+  const handlePairWhatsAppSession = async (agent: AiAgent) => {
+    setIsPairingWhatsApp(true);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1800)); // Simulate Web Socket handshake
+
+      const updatedAgentData = {
+        whatsappStatus: 'connected' as const,
+        whatsappPhone: pairedPhoneNumber.trim() || '+573043470984',
+        whatsappPairedAt: `${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES')}`,
+        whatsappSessionId: `wa_sess_${Date.now()}`,
+      };
+
+      // Save session status in Firestore
+      try {
+        await updateDoc(doc(db, 'ai_agents', agent.id), updatedAgentData);
+      } catch (err) {
+        console.warn('Firestore agent session update notice:', err);
+      }
+
+      // Update local state
+      setActiveAgentDetail((prev) => (prev && prev.id === agent.id ? { ...prev, ...updatedAgentData } : prev));
+      setAgents((prev) => prev.map((a) => (a.id === agent.id ? { ...a, ...updatedAgentData } : a)));
+
+      showToast(`¡WhatsApp Web de "${agent.name}" vinculado exitosamente con el número ${updatedAgentData.whatsappPhone}!`, 'success');
+
+      setWhatsappChatLog((prev) => [
+        ...prev,
+        {
+          sender: 'system',
+          text: `🟢 ¡Dispositivo vinculado! WhatsApp Web activo para ${updatedAgentData.whatsappPhone}.`,
+          time: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+        },
+      ]);
+    } catch (err) {
+      console.error('Error pairing WhatsApp session:', err);
+      showToast('Error al vincular la sesión de WhatsApp Web.', 'error');
+    } finally {
+      setIsPairingWhatsApp(false);
+    }
+  };
+
+  // Disconnect WhatsApp Session for Agent
+  const handleDisconnectWhatsAppSession = async (agent: AiAgent) => {
+    try {
+      const updatedAgentData = {
+        whatsappStatus: 'disconnected' as const,
+        whatsappPhone: '',
+        whatsappPairedAt: '',
+        whatsappSessionId: '',
+      };
+
+      try {
+        await updateDoc(doc(db, 'ai_agents', agent.id), updatedAgentData);
+      } catch (err) {
+        console.warn('Firestore disconnect notice:', err);
+      }
+
+      setActiveAgentDetail((prev) => (prev && prev.id === agent.id ? { ...prev, ...updatedAgentData } : prev));
+      setAgents((prev) => prev.map((a) => (a.id === agent.id ? { ...a, ...updatedAgentData } : a)));
+
+      showToast(`Sesión de WhatsApp Web de "${agent.name}" desconectada.`, 'info');
+    } catch (err) {
+      console.error('Error disconnecting WhatsApp session:', err);
+    }
+  };
+
+  // Send Test Message from Paired Agent WhatsApp Web Session
+  const handleSendTestWhatsAppMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeAgentDetail || !customTestMessage.trim()) return;
+
+    const msgText = customTestMessage.trim();
+    const timeStr = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+    setWhatsappChatLog((prev) => [...prev, { sender: 'agent', text: msgText, time: timeStr }]);
+    setCustomTestMessage('');
+
+    showToast(`Mensaje despachado desde la sesión de WhatsApp de "${activeAgentDetail.name}"`, 'success');
+
+    // Trigger Twilio/WhatsApp alert behind the scenes
+    try {
+      await sendUrgentAlert(`[Mensaje desde Agente ${activeAgentDetail.name} vía WhatsApp Web]: ${msgText}`);
+    } catch (err) {
+      console.warn('Dispatch notice:', err);
+    }
   };
 
   // New Agent Form State
@@ -844,8 +976,376 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Main Banner with 24/7 Master Control */}
-      <div className="bg-gradient-to-r from-cyan-950 via-slate-900 to-purple-950 p-6 rounded-3xl border border-cyan-800/40 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      {activeAgentDetail ? (
+        /* FULL AGENT DETAIL & WHATSAPP WEB VIRTUAL BROWSER PREVIEW PAGE */
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Navigation Back Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-5 rounded-3xl shadow-xl">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setActiveAgentDetail(null)}
+                className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-2xl transition-colors flex items-center gap-2 text-xs font-bold border border-slate-700 cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4 text-cyan-400" />
+                <span>Volver al Catálogo</span>
+              </button>
+
+              <div className="h-6 w-[1px] bg-slate-800 hidden sm:block" />
+
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-cyan-950 border border-cyan-800 rounded-2xl text-cyan-400">
+                  {renderAgentIcon(activeAgentDetail.icon, 'w-6 h-6')}
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-white leading-tight flex items-center gap-2">
+                    <span>{activeAgentDetail.name}</span>
+                    <span
+                      className={`text-[10px] font-mono px-2.5 py-0.5 rounded-full font-bold uppercase border ${
+                        activeAgentDetail.whatsappStatus === 'connected'
+                          ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
+                          : 'bg-amber-950 text-amber-300 border-amber-800'
+                      }`}
+                    >
+                      {activeAgentDetail.whatsappStatus === 'connected'
+                        ? '🟢 WhatsApp Web Conectado'
+                        : '🟡 QR Pendiente de Escaneo'}
+                    </span>
+                  </h2>
+                  <p className="text-xs text-slate-400 font-medium mt-0.5">
+                    Especialidad: <strong className="text-cyan-400">{activeAgentDetail.role}</strong> ({activeAgentDetail.model})
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => openLiveTestModal(activeAgentDetail)}
+                className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs rounded-2xl shadow-lg shadow-purple-950 flex items-center gap-2 transition-all cursor-pointer"
+              >
+                <Zap className="w-4 h-4 fill-current text-amber-300" />
+                <span>Probar Habilidad</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setSelectedAgentId(activeAgentDetail.id);
+                  setActiveAgentDetail(null);
+                  setActiveTab('training');
+                }}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs rounded-2xl flex items-center gap-2 transition-colors cursor-pointer"
+              >
+                <Sliders className="w-4 h-4 text-purple-400" />
+                <span>Editar Entrenamiento</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Main Grid: Left Specs & WhatsApp Status - Right Virtual Browser Preview */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Column: Agent Specs & Pairing Instructions */}
+            <div className="lg:col-span-4 space-y-5">
+              {/* Agent Overview Card */}
+              <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl space-y-4 shadow-xl">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <h3 className="text-xs font-bold text-slate-300 uppercase font-mono tracking-wider flex items-center gap-2">
+                    <Brain className="w-4 h-4 text-purple-400" /> Perfil del Agente de IA
+                  </h3>
+                  <span className="text-[10px] font-mono text-cyan-400 bg-cyan-950 px-2 py-0.5 rounded border border-cyan-800">
+                    ID: {activeAgentDetail.id}
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-300 leading-relaxed">{activeAgentDetail.description}</p>
+
+                <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-1.5">
+                  <span className="text-[11px] font-bold text-purple-400 block font-mono">⚡ Habilidad Entrenada:</span>
+                  <p className="text-xs text-white font-bold">{activeAgentDetail.customSkillName}</p>
+                  <p className="text-xs text-slate-400 italic font-mono leading-relaxed max-h-32 overflow-y-auto">
+                    "{activeAgentDetail.trainedInstructions}"
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {activeAgentDetail.capabilities.map((cap, idx) => (
+                    <span
+                      key={idx}
+                      className="text-[10px] font-mono px-2.5 py-1 bg-slate-950 text-slate-300 rounded-lg border border-slate-800"
+                    >
+                      {cap}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* WhatsApp Business Connection Status Card */}
+              <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl space-y-4 shadow-xl">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <h3 className="text-xs font-bold text-slate-300 uppercase font-mono tracking-wider flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-emerald-400" /> Vincular WhatsApp del Negocio
+                  </h3>
+                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">
+                    Protocolo Baileys Web
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {activeAgentDetail.whatsappStatus === 'connected' ? (
+                    <div className="p-4 bg-emerald-950/60 border border-emerald-800 rounded-2xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400" /> WhatsApp Conectado 🟢
+                        </span>
+                        <span className="text-[10px] text-emerald-400 font-mono">{activeAgentDetail.whatsappPairedAt}</span>
+                      </div>
+                      <p className="text-xs text-slate-200">
+                        Número vinculado:{' '}
+                        <strong className="text-white font-mono">{activeAgentDetail.whatsappPhone || '+573043470984'}</strong>
+                      </p>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        El agente <strong className="text-white">{activeAgentDetail.name}</strong> está listo para recibir
+                        mensajes y responder consultas automáticamente en WhatsApp.
+                      </p>
+
+                      <div className="pt-2 flex items-center justify-between">
+                        <button
+                          onClick={() => handleDisconnectWhatsAppSession(activeAgentDetail)}
+                          className="px-3 py-1.5 bg-rose-950/80 hover:bg-rose-900 border border-rose-800 text-rose-200 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <Power className="w-3.5 h-3.5" />
+                          <span>Desconectar Sesión</span>
+                        </button>
+
+                        <span className="text-[10px] font-mono text-emerald-400">Estado: Activo 24/7</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-3">
+                      <div className="flex items-center gap-2 text-xs text-amber-300 font-bold">
+                        <QrCode className="w-4 h-4 text-amber-400 animate-pulse" />
+                        <span>Esperando Vinculación por Código QR</span>
+                      </div>
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        Escanea el código QR que se visualiza en el navegador de la derecha usando la cámara de WhatsApp de tu
+                        celular.
+                      </p>
+
+                      <div className="space-y-2 pt-1">
+                        <label className="text-[11px] font-bold text-slate-300 block">Número de Teléfono a Vincular:</label>
+                        <input
+                          type="text"
+                          value={pairedPhoneNumber}
+                          onChange={(e) => setPairedPhoneNumber(e.target.value)}
+                          placeholder="+57 304 3470984"
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                        />
+                      </div>
+
+                      <button
+                        onClick={() => handlePairWhatsAppSession(activeAgentDetail)}
+                        disabled={isPairingWhatsApp}
+                        className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-950 flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+                      >
+                        {isPairingWhatsApp ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin text-white" />
+                            <span>Estableciendo Socket Baileys...</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+                            <span>Simular Escaneo QR / Confirmar Vinculación</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Interactive Browser Preview Frame (CODEX STYLE BROWSER) */}
+            <div className="lg:col-span-8 bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[680px]">
+              {/* Virtual Chrome Browser Header Toolbar */}
+              <div className="bg-slate-950 px-4 py-3 border-b border-slate-800 flex items-center justify-between gap-3 shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-rose-500/80 inline-block" />
+                  <span className="w-3 h-3 rounded-full bg-amber-500/80 inline-block" />
+                  <span className="w-3 h-3 rounded-full bg-emerald-500/80 inline-block" />
+                </div>
+
+                {/* Browser URL Input Bar */}
+                <div className="flex-1 max-w-xl mx-auto flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 font-mono">
+                  <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span className="text-slate-500 select-none">https://</span>
+                  <input
+                    type="text"
+                    value={browserUrl.replace('https://', '')}
+                    onChange={(e) => setBrowserUrl(`https://${e.target.value}`)}
+                    className="w-full bg-transparent text-slate-200 focus:outline-none font-mono text-xs"
+                  />
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(browserUrl);
+                      showToast('URL copiada al portapapeles', 'info');
+                    }}
+                    className="p-1 text-slate-400 hover:text-white rounded transition-colors cursor-pointer"
+                    title="Copiar URL"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  <span className="hidden sm:inline text-slate-300">Navegador Activo</span>
+                </div>
+              </div>
+
+              {/* Browser Content Viewport */}
+              <div className="flex-1 bg-[#0b141a] overflow-y-auto p-6 flex flex-col justify-center items-center text-slate-100 font-sans relative">
+                {activeAgentDetail.whatsappStatus === 'connected' ? (
+                  /* WHATSAPP WEB ACTIVE CHAT SESSION INTERFACE */
+                  <div className="w-full h-full flex flex-col justify-between space-y-4 max-w-2xl mx-auto bg-[#111b21] rounded-2xl border border-slate-800 p-4 shadow-2xl animate-in fade-in duration-200">
+                    {/* Chat Session Top Bar */}
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-emerald-950 border border-emerald-700 rounded-xl text-emerald-400">
+                          <MessageSquare className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                            <span>WhatsApp Web - Sesión Agente IA</span>
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                          </h4>
+                          <p className="text-[11px] text-emerald-400 font-mono">
+                            Número Vinculado: {activeAgentDetail.whatsappPhone || '+573043470984'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
+                          Modo 24/7 Automatizado
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Chat Log Feed */}
+                    <div className="flex-1 overflow-y-auto space-y-3 p-3 bg-[#0b141a] rounded-xl border border-slate-800/60 font-sans max-h-[380px]">
+                      {whatsappChatLog.map((log, idx) => (
+                        <div
+                          key={idx}
+                          className={`flex flex-col ${
+                            log.sender === 'user' ? 'items-end' : log.sender === 'agent' ? 'items-start' : 'items-center'
+                          }`}
+                        >
+                          {log.sender === 'system' ? (
+                            <span className="text-[10px] font-mono px-3 py-1 bg-slate-900 text-slate-400 rounded-full border border-slate-800 my-1">
+                              {log.text}
+                            </span>
+                          ) : (
+                            <div
+                              className={`max-w-lg p-3 rounded-2xl text-xs leading-relaxed ${
+                                log.sender === 'user'
+                                  ? 'bg-[#005c4b] text-white rounded-br-none shadow-md'
+                                  : 'bg-[#202c33] text-slate-100 rounded-bl-none border border-slate-700/50 shadow-md'
+                              }`}
+                            >
+                              <p>{log.text}</p>
+                              <span className="text-[9px] text-slate-400 font-mono block text-right mt-1">{log.time}</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Chat Bottom Message Form */}
+                    <form onSubmit={handleSendTestWhatsAppMessage} className="flex gap-2 pt-1">
+                      <input
+                        type="text"
+                        value={customTestMessage}
+                        onChange={(e) => setCustomTestMessage(e.target.value)}
+                        placeholder={`Escribe un mensaje para enviar por WhatsApp desde ${activeAgentDetail.name}...`}
+                        className="flex-1 bg-[#202c33] border border-slate-700/60 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500 font-sans"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!customTestMessage.trim()}
+                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-lg flex items-center gap-2 transition-all shrink-0 cursor-pointer"
+                      >
+                        <Send className="w-4 h-4" />
+                        <span>Enviar por WhatsApp</span>
+                      </button>
+                    </form>
+                  </div>
+                ) : (
+                  /* WHATSAPP WEB UNPAIRED QR LANDING INTERFACE */
+                  <div className="w-full max-w-2xl bg-[#111b21] rounded-3xl border border-slate-800 p-8 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-8 text-left animate-in zoom-in-95 duration-200">
+                    {/* Left Steps */}
+                    <div className="space-y-4 max-w-sm">
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="w-7 h-7 text-emerald-400" />
+                        <h3 className="text-lg font-black text-white tracking-tight">Vincular WhatsApp Web</h3>
+                      </div>
+
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        Conecta la cuenta de WhatsApp del negocio para que{' '}
+                        <strong className="text-cyan-400">{activeAgentDetail.name}</strong> responda y envíe mensajes de forma
+                        continua 24/7.
+                      </p>
+
+                      <ol className="space-y-2 text-xs text-slate-300 font-sans list-decimal list-inside leading-relaxed">
+                        <li>
+                          Abre <strong className="text-white">WhatsApp</strong> en tu teléfono.
+                        </li>
+                        <li>
+                          Toca <strong className="text-white">Menú</strong> en Android o{' '}
+                          <strong className="text-white">Configuración</strong> en iPhone.
+                        </li>
+                        <li>
+                          Toca <strong className="text-white">Dispositivos vinculados</strong> y luego{' '}
+                          <strong className="text-white">Vincular un dispositivo</strong>.
+                        </li>
+                        <li>Apunta la cámara de tu celular hacia este código QR.</li>
+                      </ol>
+                    </div>
+
+                    {/* Right Dynamic QR Code Display */}
+                    <div className="flex flex-col items-center justify-center space-y-3 bg-[#202c33] p-5 rounded-2xl border border-slate-700/60 shadow-xl shrink-0">
+                      <div className="p-2 bg-white rounded-xl shadow-inner border border-slate-300">
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
+                            `https://web.whatsapp.com/pair?agent=${activeAgentDetail.id}&phone=${pairedPhoneNumber}`
+                          )}`}
+                          alt="Código QR WhatsApp Web"
+                          className="w-48 h-48 rounded-lg"
+                        />
+                      </div>
+
+                      <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-950 px-2.5 py-1 rounded-full border border-emerald-800 flex items-center gap-1">
+                        <QrCode className="w-3 h-3 text-emerald-400" /> Escanear con WhatsApp
+                      </span>
+
+                      <button
+                        onClick={() => handlePairWhatsAppSession(activeAgentDetail)}
+                        disabled={isPairingWhatsApp}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg flex items-center gap-2 transition-all cursor-pointer"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Simular Escaneo QR</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Main Banner with 24/7 Master Control */}
+          <div className="bg-gradient-to-r from-cyan-950 via-slate-900 to-purple-950 p-6 rounded-3xl border border-cyan-800/40 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-bold px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center gap-1.5 shadow-sm">
@@ -904,6 +1404,18 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
         </button>
 
         <button
+          onClick={() => setActiveTab('browser')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            activeTab === 'browser'
+              ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-600/30'
+              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+          }`}
+        >
+          <Globe className="w-4 h-4 text-emerald-400" />
+          <span>Navegador Web & Redes Sociales</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('training')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
             activeTab === 'training'
@@ -957,6 +1469,18 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
           <span>Playground de Prueba</span>
         </button>
       </div>
+
+      {/* TAB NAVEGADOR WEB & REDES SOCIALES */}
+      {activeTab === 'browser' && (
+        <WebBrowserView
+          initialUrl={browserStartUrl}
+          agentName={selectedAgent ? selectedAgent.name : 'Agente de IA Nexus'}
+          agentRole={selectedAgent ? selectedAgent.role : 'Navegación & Redes Sociales'}
+          onExecuteAgentAction={(action, url, payload) => {
+            showToast(`Acción de IA "${action}" ejecutada exitosamente en ${url}`, 'success');
+          }}
+        />
+      )}
 
       {/* TAB 1: CATÁLOGO DE AGENTES */}
       {activeTab === 'agents' && (
@@ -1047,6 +1571,15 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
                       <span>{ag.isAutonomous247 ? 'Activo' : 'Pausado'}</span>
                     </button>
                   </div>
+
+                  {/* Primary WhatsApp Web & Agent Detail Browser Button */}
+                  <button
+                    onClick={() => openAgentDetailView(ag)}
+                    className="w-full py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-950 flex items-center justify-center gap-2 transition-all cursor-pointer transform hover:-translate-y-0.5"
+                  >
+                    <Globe className="w-4 h-4 text-emerald-200" />
+                    <span>Abrir Navegador & Vincular WhatsApp</span>
+                  </button>
 
                   <div className="grid grid-cols-2 gap-2">
                     <button
@@ -1614,6 +2147,8 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
           </form>
         </div>
       )}
+    </>
+  )}
 
       {/* MODAL: CREAR NUEVO AGENTE */}
       {isCreateModalOpen && (
