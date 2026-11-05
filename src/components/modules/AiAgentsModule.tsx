@@ -35,7 +35,27 @@ import {
   Power,
   Lock,
   Check,
+  Crown,
+  Briefcase,
+  DollarSign,
+  ClipboardList,
+  Target,
+  Award,
+  TrendingUp,
+  Building2,
+  BarChart2,
+  History,
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Cell,
+} from 'recharts';
 import {
   collection,
   onSnapshot,
@@ -58,6 +78,22 @@ import {
   sendUrgentAlert,
 } from '../../lib/webhookHandlers';
 import { WebBrowserView } from '../WebBrowserView';
+import { ChatHistoryPanel } from './ChatHistoryPanel';
+import {
+  AiAgentConfigValidationErrors,
+  validateAgentConfiguration,
+  buildConfiguredAgentDocument,
+  extractUrlFromPrompt,
+  normalizeAgentBaseUrl,
+  formatTimeHHMM,
+  ChatMessageItem,
+  ChatConversationSession,
+  buildAgentWelcomeMessage,
+  buildAgentMessageAnalytics,
+  buildChatConversationSession,
+  restoreConversationMessages,
+  buildInitialSeedConversations,
+} from '../../utils/agentConfig';
 
 
 interface AiAgentsModuleProps {
@@ -71,6 +107,7 @@ export interface AiAgent {
   description: string;
   customSkillName: string;
   trainedInstructions: string;
+  baseUrl?: string;
   model: string;
   icon: string;
   status: 'active' | 'idle' | 'busy' | 'autonomous';
@@ -78,7 +115,9 @@ export interface AiAgent {
   executionInterval: number; // in seconds (e.g. 15, 30, 60, 300)
   isAutonomous247: boolean;
   lastRunTimestamp?: string;
+  messagesCount?: number;
   createdAt?: string;
+  updatedAt?: string;
   whatsappStatus?: 'disconnected' | 'qr_ready' | 'connecting' | 'connected';
   whatsappPhone?: string;
   whatsappPairedAt?: string;
@@ -109,6 +148,70 @@ export interface WebhookEvent {
 
 export const DEFAULT_INITIAL_AGENTS: AiAgent[] = [
   {
+    id: 'agent_president',
+    name: 'Presidente de la Junta Directiva',
+    role: 'Presidente de la Junta Directiva',
+    description: 'Especialista en visión estratégica corporativa, gobernanza de Nexus Web Studio, alianzas de alto nivel y toma de decisiones colegiadas.',
+    customSkillName: 'Visión Estratégica & Directrices de Gobierno Corporativo',
+    trainedInstructions:
+      'Liderar la toma de decisiones directivas de Nexus Web Studio, evaluar riesgos globales, validar fusiones o alianzas corporativas y supervisar el cumplimiento de la visión empresarial.',
+    baseUrl: 'https://nexuswebstudio.com/junta-directiva',
+    model: 'Gemini 3.8 Flash',
+    icon: 'Crown',
+    status: 'autonomous',
+    capabilities: ['Visión Estratégica', 'Gobernanza Corporativa', 'Decisiones de Junta', 'Alianzas Clave'],
+    executionInterval: 30,
+    isAutonomous247: true,
+  },
+  {
+    id: 'agent_treasurer',
+    name: 'Tesorero de la Junta Directiva',
+    role: 'Tesorero de la Junta Directiva',
+    description: 'Supervisa la salud financiera, flujo de caja, presupuestos anuales de software/infraestructura y rentabilidad de Nexus Web Studio.',
+    customSkillName: 'Auditoría Financiera & Control de Presupuestos 24/7',
+    trainedInstructions:
+      'Auditar estados financieros, controlar presupuestos operativos y de desarrollo, proyectar flujo de caja y maximizar la rentabilidad de la empresa.',
+    baseUrl: 'https://nexuswebstudio.com/finanzas',
+    model: 'Gemini 3.8 Flash',
+    icon: 'DollarSign',
+    status: 'autonomous',
+    capabilities: ['Control Financiero', 'Flujo de Caja', 'Auditoría de Gastos', 'Presupuesto I+D'],
+    executionInterval: 30,
+    isAutonomous247: true,
+  },
+  {
+    id: 'agent_secretary',
+    name: 'Secretaria de la Junta Directiva',
+    role: 'Secretaria de la Junta Directiva',
+    description: 'Gestiona actas de junta directiva, minutas de decisiones ejecutivas, seguimiento de acuerdos y cumplimiento normativo corporativo.',
+    customSkillName: 'Redacción de Actas & Gobernanza de Acuerdos Ejecutivos',
+    trainedInstructions:
+      'Registrar minutas detalladas de sesiones de junta directiva, organizar el calendario de acuerdos, formalizar actas institucionales y garantizar compliance.',
+    baseUrl: 'https://nexuswebstudio.com/actas',
+    model: 'Gemini 3.8 Flash',
+    icon: 'ClipboardList',
+    status: 'autonomous',
+    capabilities: ['Actas de Junta', 'Seguimiento de Acuerdos', 'Compliance & Estatutos', 'Documentación Ejecutiva'],
+    executionInterval: 15,
+    isAutonomous247: true,
+  },
+  {
+    id: 'agent_ceo',
+    name: 'CEO (Chief Executive Officer)',
+    role: 'CEO - Director Ejecutivo General',
+    description: 'Dirige la ejecución operativa general, estrategia de mercado, expansión del modelo de negocio y rendimiento de proyectos en Nexus Web Studio.',
+    customSkillName: 'Dirección Ejecutiva & Coordinación General de Negocio',
+    trainedInstructions:
+      'Transformar la visión de la Junta Directiva en ejecución operativa real, supervisar metas comerciales de software y garantizar la máxima excelencia al cliente.',
+    baseUrl: 'https://nexuswebstudio.com',
+    model: 'Gemini 3.8 Flash',
+    icon: 'Target',
+    status: 'autonomous',
+    capabilities: ['Dirección General', 'Cumplimiento de Metas', 'Liderazgo Operativo', 'Estrategia de Mercado'],
+    executionInterval: 15,
+    isAutonomous247: true,
+  },
+  {
     id: 'agent_architect',
     name: 'Nexus Code Architect Agent',
     role: 'Arquitectura & Refactorización',
@@ -116,7 +219,8 @@ export const DEFAULT_INITIAL_AGENTS: AiAgent[] = [
     customSkillName: 'Refactorización Limpia & Diagnóstico de Código',
     trainedInstructions:
       'Revisar la sintaxis de los componentes React, asegurar tipado estricto en TypeScript sin "any", optimizar hooks de React y mantener arquitectura modular limpia.',
-    model: 'Gemini 2.5 Flash / Pro',
+    baseUrl: 'https://github.com/nexuswebstudio/nexus-platform-v2',
+    model: 'Gemini 3.8 Flash',
     icon: 'Code',
     status: 'active',
     capabilities: ['Code Review', 'Estructura DB', 'Optimización Vite', 'Refactorización RBAC'],
@@ -131,7 +235,8 @@ export const DEFAULT_INITIAL_AGENTS: AiAgent[] = [
     customSkillName: 'Auditoría Continua de Reglas de Seguridad',
     trainedInstructions:
       'Verificar minuciosamente la configuración de Firestore Security Rules, comprobar que ningún endpoint exponga tokens sensibles y validar esquemas de datos.',
-    model: 'Gemini 2.5 Security',
+    baseUrl: 'https://nexuswebstudio.com/auditoria-qa',
+    model: 'Gemini 3.8 Flash',
     icon: 'ShieldCheck',
     status: 'autonomous',
     capabilities: ['Audit Rules', 'Pruebas E2E Playwright', 'Análisis OWASP', 'Linter de Sintaxis'],
@@ -146,7 +251,8 @@ export const DEFAULT_INITIAL_AGENTS: AiAgent[] = [
     customSkillName: 'Indexación Automática & Schema JSON-LD',
     trainedInstructions:
       'Generar metadatos OpenGraph, Schema.org de tipo Organization/WebSite y auditar el etiquetado semántico HTML de la plataforma.',
-    model: 'Gemini 2.5 Content',
+    baseUrl: 'https://nexuswebstudio.com/seo-schema',
+    model: 'Gemini 3.8 Flash',
     icon: 'FileText',
     status: 'active',
     capabilities: ['JSON-LD Schema', 'OpenGraph Cards', 'Copywriting Técnico', 'Análisis Keywords'],
@@ -161,7 +267,8 @@ export const DEFAULT_INITIAL_AGENTS: AiAgent[] = [
     customSkillName: 'Monitoreo de Tickets & Respuestas SLA 24/7',
     trainedInstructions:
       'Escanear tickets de soporte pendientes, redactar respuestas profesionales en español y clasificar prioridades según acuerdos SLA.',
-    model: 'Gemini 2.5 Flash',
+    baseUrl: 'https://web.whatsapp.com',
+    model: 'Gemini 3.8 Flash',
     icon: 'MessageSquare',
     status: 'active',
     capabilities: ['Respuesta a Tickets', 'Resumen Sprints', 'Reportes de Cobro', 'SLA Tracking'],
@@ -174,9 +281,27 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
   const [agents, setAgents] = useState<AiAgent[]>(DEFAULT_INITIAL_AGENTS);
   const [logs, setLogs] = useState<AiAgentLog[]>([]);
   const [webhookEvents, setWebhookEvents] = useState<WebhookEvent[]>([]);
-  const [activeTab, setActiveTab] = useState<'agents' | 'browser' | 'training' | 'logs' | 'webhooks' | 'chat'>('agents');
+  const [activeTab, setActiveTab] = useState<'chat' | 'history' | 'agents' | 'browser' | 'training' | 'logs' | 'webhooks'>('chat');
   const [selectedAgentId, setSelectedAgentId] = useState<string>('agent_architect');
-  const [browserStartUrl, setBrowserStartUrl] = useState<string>('https://web.whatsapp.com');
+  const [browserStartUrl, setBrowserStartUrl] = useState<string>('https://github.com/nexuswebstudio/nexus-platform-v2');
+  const [showInlineTraining, setShowInlineTraining] = useState<boolean>(false);
+  const hasSeededRef = React.useRef<boolean>(false);
+  const hasSeededHistoryRef = React.useRef<boolean>(false);
+  const hasLoadedFirestoreRef = React.useRef<boolean>(false);
+  const isConfigDirtyRef = React.useRef<boolean>(false);
+  const syncedAgentIdRef = React.useRef<string>('');
+  const [chatHistorySessions, setChatHistorySessions] = useState<ChatConversationSession[]>([]);
+  const [activeConversationIdByAgent, setActiveConversationIdByAgent] = useState<Record<string, string>>({});
+  const contextConfigByAgentRef = React.useRef<
+    Record<
+      string,
+      {
+        sessionContext: string;
+        includeBaseUrlContext: boolean;
+        includeCapabilitiesContext: boolean;
+      }
+    >
+  >({});
 
   // Webhook Simulator State
   const [simulatedProjectName, setSimulatedProjectName] = useState('Plataforma FinTech Latam');
@@ -333,6 +458,29 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
     }
   };
 
+  // Dedicated Agent Configuration Form State (Nombre, Sistema de Prompts, URL Base -> Firestore ai_agents)
+  const [configMode, setConfigMode] = useState<'edit' | 'create'>('edit');
+  const [configForm, setConfigForm] = useState<{
+    name: string;
+    trainedInstructions: string;
+    baseUrl: string;
+    role: string;
+    model: string;
+  }>({
+    name: '',
+    trainedInstructions: '',
+    baseUrl: '',
+    role: '',
+    model: 'Gemini 3.8 Flash',
+  });
+  const [configErrors, setConfigErrors] = useState<AiAgentConfigValidationErrors>({});
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [configSaveStatus, setConfigSaveStatus] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
+  const [createModalErrors, setCreateModalErrors] = useState<AiAgentConfigValidationErrors>({});
+
   // New Agent Form State
   const [newAgent, setNewAgent] = useState<{
     name: string;
@@ -340,6 +488,7 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
     description: string;
     customSkillName: string;
     trainedInstructions: string;
+    baseUrl: string;
     model: string;
     icon: string;
     capabilities: string;
@@ -351,7 +500,8 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
     description: '',
     customSkillName: '',
     trainedInstructions: '',
-    model: 'Gemini 2.5 Flash',
+    baseUrl: 'https://nexuswebstudio.com',
+    model: 'Gemini 3.8 Flash',
     icon: 'Brain',
     capabilities: 'Monitoreo, Auditoría, Reporte',
     executionInterval: 30,
@@ -362,28 +512,29 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
   const [trainingData, setTrainingData] = useState<{
     customSkillName: string;
     trainedInstructions: string;
+    baseUrl: string;
     executionInterval: number;
     model: string;
     isAutonomous247: boolean;
   }>({
     customSkillName: '',
     trainedInstructions: '',
+    baseUrl: '',
     executionInterval: 30,
-    model: 'Gemini 2.5 Flash',
+    model: 'Gemini 3.8 Flash',
     isAutonomous247: true,
   });
 
-  // Chat State
+  // Interactive Multi-Turn Chat State (per-agent conversation history + context settings)
   const [promptInput, setPromptInput] = useState('');
-  const [chatMessages, setChatMessages] = useState<{ sender: 'user' | 'agent'; text: string; timestamp: string }[]>([
-    {
-      sender: 'agent',
-      text: '¡Hola! Soy el Agente Inteligente con habilidad entrenada 24/7. ¿En qué tarea puedo aplicarla hoy?',
-      timestamp: new Date().toLocaleTimeString().slice(0, 5),
-    },
-  ]);
+  const [chatThreadsByAgent, setChatThreadsByAgent] = useState<Record<string, ChatMessageItem[]>>({});
+  const [sessionContextNote, setSessionContextNote] = useState<string>('');
+  const [includeBaseUrlContext, setIncludeBaseUrlContext] = useState<boolean>(true);
+  const [includeCapabilitiesContext, setIncludeCapabilitiesContext] = useState<boolean>(true);
+  const [showFullContextDrawer, setShowFullContextDrawer] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [master247Active, setMaster247Active] = useState(true);
+  const [master247Active, setMaster247Active] = useState(false);
+  const chatFeedRef = React.useRef<HTMLDivElement | null>(null);
 
   // Automated Project Webhook Event Processor
   const handleProcessProjectWebhook = async (eventId: string, webhook: WebhookEvent) => {
@@ -514,29 +665,35 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
     const agentsRef = collection(db, 'ai_agents');
     const unsubscribeAgents = onSnapshot(
       agentsRef,
-      (snapshot) => {
+      async (snapshot) => {
         if (!snapshot.empty) {
+          hasSeededRef.current = true;
           const loadedAgents: AiAgent[] = snapshot.docs.map((d) => ({
             id: d.id,
             ...(d.data() as Omit<AiAgent, 'id'>),
           }));
-          setAgents(loadedAgents);
-        } else {
-          // If Firestore collection is empty, check if initial seed has run
-          const hasSeeded = localStorage.getItem('nexus_ai_agents_seeded');
-          if (!hasSeeded) {
-            localStorage.setItem('nexus_ai_agents_seeded', 'true');
-            DEFAULT_INITIAL_AGENTS.forEach(async (ag) => {
-              try {
-                await setDoc(doc(db, 'ai_agents', ag.id), ag);
-              } catch (err) {
-                // Ignore initial seed permission error
-              }
-            });
-          } else {
-            // Document count is 0 because agents were deleted from UI or Firestore console
-            setAgents([]);
+
+          if (!hasLoadedFirestoreRef.current) {
+            hasLoadedFirestoreRef.current = true;
+            if (!isConfigDirtyRef.current) {
+              syncedAgentIdRef.current = '';
+            }
           }
+
+          setAgents(loadedAgents);
+        } else if (!hasSeededRef.current) {
+          hasSeededRef.current = true;
+          for (const ag of DEFAULT_INITIAL_AGENTS) {
+            try {
+              await setDoc(doc(db, 'ai_agents', ag.id), ag, { merge: true });
+            } catch (err) {
+              console.warn('Initial seed notice:', err);
+            }
+          }
+          if (!isConfigDirtyRef.current) {
+            syncedAgentIdRef.current = '';
+          }
+          setAgents(DEFAULT_INITIAL_AGENTS);
         }
       },
       (error) => {
@@ -586,6 +743,60 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
       }
     );
 
+    const conversationsRef = collection(db, 'ai_agent_conversations');
+    const conversationsQuery = query(
+      conversationsRef,
+      orderBy('updatedAt', 'desc'),
+      limit(100)
+    );
+    const unsubscribeConversations = onSnapshot(
+      conversationsQuery,
+      async (snapshot) => {
+        if (!snapshot.empty) {
+          hasSeededHistoryRef.current = true;
+          try {
+            localStorage.setItem('nexus_chat_history_seeded_v1', '1');
+          } catch {}
+          const loadedSessions: ChatConversationSession[] = snapshot.docs.map((d) => ({
+            id: d.id,
+            ...(d.data() as Omit<ChatConversationSession, 'id'>),
+          }));
+          setChatHistorySessions(loadedSessions);
+        } else {
+          let alreadySeeded = hasSeededHistoryRef.current;
+          try {
+            if (localStorage.getItem('nexus_chat_history_seeded_v1') === '1') {
+              alreadySeeded = true;
+            }
+          } catch {}
+
+          if (!alreadySeeded) {
+            hasSeededHistoryRef.current = true;
+            try {
+              localStorage.setItem('nexus_chat_history_seeded_v1', '1');
+            } catch {}
+            const initialSeeds = buildInitialSeedConversations();
+            setChatHistorySessions(initialSeeds);
+            for (const seed of initialSeeds) {
+              try {
+                await setDoc(doc(db, 'ai_agent_conversations', seed.id), seed, {
+                  merge: true,
+                });
+              } catch (seedErr) {
+                console.warn('Initial chat history seed notice:', seedErr);
+              }
+            }
+          } else {
+            setChatHistorySessions([]);
+          }
+        }
+      },
+      (error) => {
+        console.warn('Firestore chat conversations sync error:', error);
+        handleFirestoreError(error, OperationType.LIST, 'ai_agent_conversations');
+      }
+    );
+
     // Auto-listen for urgent Firebase Inbox contact messages to dispatch WhatsApp alert
     const unsubscribeInbox = setupFirebaseInboxWebhookListener((msg, result) => {
       console.log('Alerta WhatsApp 24/7 procesada por mensaje urgente de Firebase:', msg.name, result.statusText);
@@ -595,12 +806,65 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
       unsubscribeAgents();
       unsubscribeLogs();
       unsubscribeWebhooks();
+      unsubscribeConversations();
       unsubscribeInbox();
     };
   }, []);
 
 
+  const [inFlightMessagesByAgent, setInFlightMessagesByAgent] = useState<Record<string, number>>({});
+  const [analyticsOnlyActive, setAnalyticsOnlyActive] = useState<boolean>(false);
+
   const selectedAgent = agents.find((a) => a.id === selectedAgentId) || agents[0];
+
+  const activeChatMessages: ChatMessageItem[] = React.useMemo(() => {
+    if (!selectedAgent) return [];
+    const existingThread = chatThreadsByAgent[selectedAgent.id];
+    if (existingThread && existingThread.length > 0) {
+      return existingThread;
+    }
+    return [buildAgentWelcomeMessage(selectedAgent)];
+  }, [selectedAgent, chatThreadsByAgent]);
+
+  const agentAnalytics = React.useMemo(() => {
+    const mergedAgents = agents.map((ag) => ({
+      id: ag.id,
+      name: ag.name,
+      role: ag.role,
+      messagesCount: (ag.messagesCount || 0) + (inFlightMessagesByAgent[ag.id] || 0),
+    }));
+    return buildAgentMessageAnalytics(mergedAgents, selectedAgentId, analyticsOnlyActive);
+  }, [agents, inFlightMessagesByAgent, selectedAgentId, analyticsOnlyActive]);
+
+  // Auto-scroll chat feed when messages change
+  useEffect(() => {
+    if (chatFeedRef.current) {
+      chatFeedRef.current.scrollTop = chatFeedRef.current.scrollHeight;
+    }
+  }, [activeChatMessages.length, selectedAgentId]);
+
+  const populateFormsFromAgent = (agent: AiAgent) => {
+    const resolvedBaseUrl = agent.baseUrl || 'https://nexuswebstudio.com';
+    setTrainingData({
+      customSkillName: agent.customSkillName || '',
+      trainedInstructions: agent.trainedInstructions || '',
+      baseUrl: resolvedBaseUrl,
+      executionInterval: agent.executionInterval || 30,
+      model: agent.model || 'Gemini 3.8 Flash',
+      isAutonomous247: agent.isAutonomous247 ?? true,
+    });
+    if (configMode === 'edit') {
+      setConfigForm({
+        name: agent.name || '',
+        trainedInstructions: agent.trainedInstructions || '',
+        baseUrl: resolvedBaseUrl,
+        role: agent.role || 'Agente Especialista IA',
+        model: agent.model || 'Gemini 3.8 Flash',
+      });
+      setConfigErrors({});
+    }
+    setBrowserStartUrl(normalizeAgentBaseUrl(resolvedBaseUrl));
+  };
 
   // Auto-switch selected agent if deleted
   useEffect(() => {
@@ -609,18 +873,251 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
     }
   }, [agents, selectedAgentId]);
 
-  // Sync training data form when selected agent changes
+  // Sync forms when selectedAgentId changes or first Firestore snapshot arrives (without overwriting active typing)
   useEffect(() => {
-    if (selectedAgent) {
-      setTrainingData({
-        customSkillName: selectedAgent.customSkillName || '',
+    const matched = agents.find((a) => a.id === selectedAgentId) || agents[0];
+    if (matched && !isConfigDirtyRef.current && syncedAgentIdRef.current !== matched.id) {
+      syncedAgentIdRef.current = matched.id;
+      populateFormsFromAgent(matched);
+    }
+  }, [selectedAgentId, agents]);
+
+  const handleSelectAgent = (agentId: string) => {
+    if (selectedAgentId && selectedAgentId !== agentId) {
+      contextConfigByAgentRef.current[selectedAgentId] = {
+        sessionContext: sessionContextNote,
+        includeBaseUrlContext,
+        includeCapabilitiesContext,
+      };
+    }
+
+    syncedAgentIdRef.current = '';
+    isConfigDirtyRef.current = false;
+    setConfigMode('edit');
+    setConfigSaveStatus(null);
+    setSelectedAgentId(agentId);
+    const matched = agents.find((a) => a.id === agentId);
+    if (matched) {
+      syncedAgentIdRef.current = matched.id;
+      populateFormsFromAgent(matched);
+    }
+
+    if (selectedAgentId !== agentId) {
+      const savedCtx = contextConfigByAgentRef.current[agentId];
+      if (savedCtx) {
+        setSessionContextNote(savedCtx.sessionContext);
+        setIncludeBaseUrlContext(savedCtx.includeBaseUrlContext);
+        setIncludeCapabilitiesContext(savedCtx.includeCapabilitiesContext);
+      } else {
+        setSessionContextNote('');
+        setIncludeBaseUrlContext(true);
+        setIncludeCapabilitiesContext(true);
+      }
+    }
+  };
+
+  const handleResumeConversation = (session: ChatConversationSession) => {
+    const existingAgent = agents.find((a) => a.id === session.agentId);
+    const targetAgentId = existingAgent ? existingAgent.id : session.agentId;
+
+    if (!existingAgent) {
+      const reconstructedAgent: AiAgent = {
+        id: session.agentId,
+        name: session.agentName,
+        role: session.agentRole || 'Agente Especialista IA',
+        description: `Agente restaurado desde historial (${session.title}).`,
+        customSkillName: `Prompt: ${session.agentName}`,
+        trainedInstructions:
+          session.trainedInstructionsSnapshot ||
+          'Responder aplicando el historial y contexto de la conversación.',
+        baseUrl: session.baseUrl || 'https://nexuswebstudio.com',
+        model: 'Gemini 3.8 Flash',
+        icon: 'Bot',
+        status: 'active',
+        capabilities: ['Historial Restaurado', 'Contexto Continuo'],
+        executionInterval: 30,
+        isAutonomous247: false,
+      };
+      setAgents((prev) => [reconstructedAgent, ...prev]);
+    }
+
+    const resolvedAgentForWelcome = existingAgent || {
+      id: session.agentId,
+      name: session.agentName,
+      role: session.agentRole,
+      trainedInstructions: session.trainedInstructionsSnapshot,
+      baseUrl: session.baseUrl,
+    };
+
+    const restoredMessages = restoreConversationMessages(
+      session,
+      resolvedAgentForWelcome
+    );
+
+    const restoredContext = {
+      sessionContext: session.sessionContext || '',
+      includeBaseUrlContext: session.includeBaseUrlContext ?? true,
+      includeCapabilitiesContext: session.includeCapabilitiesContext ?? true,
+    };
+    contextConfigByAgentRef.current[targetAgentId] = restoredContext;
+
+    syncedAgentIdRef.current = '';
+    isConfigDirtyRef.current = false;
+    setConfigMode('edit');
+    setConfigSaveStatus(null);
+    setSelectedAgentId(targetAgentId);
+
+    setActiveConversationIdByAgent((prev) => ({
+      ...prev,
+      [targetAgentId]: session.id,
+    }));
+
+    setChatThreadsByAgent((prev) => ({
+      ...prev,
+      [targetAgentId]: restoredMessages,
+    }));
+
+    setSessionContextNote(restoredContext.sessionContext);
+    setIncludeBaseUrlContext(restoredContext.includeBaseUrlContext);
+    setIncludeCapabilitiesContext(restoredContext.includeCapabilitiesContext);
+    if (restoredContext.sessionContext) {
+      setShowFullContextDrawer(true);
+    }
+
+    if (existingAgent) {
+      syncedAgentIdRef.current = existingAgent.id;
+      populateFormsFromAgent(existingAgent);
+    }
+
+    if (session.baseUrl) {
+      setBrowserStartUrl(normalizeAgentBaseUrl(session.baseUrl));
+    }
+
+    setActiveTab('chat');
+    showToast(
+      `Conversación "${session.title}" restaurada con su contexto completo.`,
+      'success'
+    );
+  };
+
+  const handleDeleteConversation = async (sessionId: string) => {
+    setChatHistorySessions((prev) => prev.filter((s) => s.id !== sessionId));
+    try {
+      await deleteDoc(doc(db, 'ai_agent_conversations', sessionId));
+      showToast('Conversación eliminada del historial.', 'info');
+    } catch (err) {
+      console.error('Error deleting chat conversation:', err);
+      handleFirestoreError(err, OperationType.DELETE, `ai_agent_conversations/${sessionId}`);
+    }
+  };
+
+  const handleSwitchConfigMode = (mode: 'edit' | 'create') => {
+    setConfigMode(mode);
+    setConfigErrors({});
+    setConfigSaveStatus(null);
+    isConfigDirtyRef.current = false;
+    if (mode === 'create') {
+      setConfigForm({
+        name: '',
+        trainedInstructions: '',
+        baseUrl: 'https://nexuswebstudio.com',
+        role: 'Agente Especialista IA',
+        model: 'Gemini 3.8 Flash',
+      });
+    } else if (selectedAgent) {
+      setConfigForm({
+        name: selectedAgent.name || '',
         trainedInstructions: selectedAgent.trainedInstructions || '',
-        executionInterval: selectedAgent.executionInterval || 30,
-        model: selectedAgent.model || 'Gemini 2.5 Flash',
-        isAutonomous247: selectedAgent.isAutonomous247 ?? true,
+        baseUrl: selectedAgent.baseUrl || 'https://nexuswebstudio.com',
+        role: selectedAgent.role || 'Agente Especialista IA',
+        model: selectedAgent.model || 'Gemini 3.8 Flash',
       });
     }
-  }, [selectedAgentId, selectedAgent]);
+  };
+
+  // Save Agent Configuration (Nombre, Sistema de Prompts, URL Base) directly to Firestore `ai_agents`
+  const handleSaveAgentConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const validation = validateAgentConfiguration(configForm);
+    if (!validation.valid) {
+      setConfigErrors(validation.errors);
+      setConfigSaveStatus({
+        type: 'error',
+        message: 'Por favor completa correctamente todos los campos requeridos.',
+      });
+      return;
+    }
+
+    setIsSavingConfig(true);
+    setConfigErrors({});
+    setConfigSaveStatus(null);
+
+    const isEditingExisting = configMode === 'edit' && Boolean(selectedAgent);
+    const targetId =
+      isEditingExisting && selectedAgent ? selectedAgent.id : `agent_${Date.now()}`;
+
+    const configuredDoc = buildConfiguredAgentDocument(configForm, {
+      id: targetId,
+      existingAgent: isEditingExisting ? selectedAgent : undefined,
+    });
+
+    try {
+      await setDoc(doc(db, 'ai_agents', configuredDoc.id), configuredDoc, { merge: true });
+
+      setAgents((prev) => {
+        const exists = prev.some((a) => a.id === configuredDoc.id);
+        if (exists) {
+          return prev.map((a) => (a.id === configuredDoc.id ? configuredDoc : a));
+        }
+        return [configuredDoc, ...prev];
+      });
+
+      syncedAgentIdRef.current = configuredDoc.id;
+      isConfigDirtyRef.current = false;
+      setSelectedAgentId(configuredDoc.id);
+      setConfigMode('edit');
+      setConfigForm({
+        name: configuredDoc.name,
+        trainedInstructions: configuredDoc.trainedInstructions,
+        baseUrl: configuredDoc.baseUrl,
+        role: configuredDoc.role,
+        model: configuredDoc.model,
+      });
+      setBrowserStartUrl(configuredDoc.baseUrl);
+      setConfigSaveStatus({
+        type: 'success',
+        message: `Configuración guardada en Firestore bajo la colección ai_agents (ID: ${configuredDoc.id}).`,
+      });
+      showToast(
+        `¡Configuración de "${configuredDoc.name}" guardada en Firestore (ai_agents)!`,
+        'success'
+      );
+
+      try {
+        await addDoc(collection(db, 'ai_agent_logs'), {
+          agentId: configuredDoc.id,
+          agentName: configuredDoc.name,
+          skillExecuted: isEditingExisting
+            ? 'Actualización de Configuración (Nombre, Prompt y URL Base)'
+            : 'Registro de Nuevo Agente en ai_agents',
+          outputSummary: `Agente: "${configuredDoc.name}" | URL Base: ${configuredDoc.baseUrl} | System Prompt configurado (${configuredDoc.trainedInstructions.length} caracteres).`,
+          status: 'completed',
+          timestamp: `${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES')}`,
+        });
+      } catch (logErr) {
+        console.warn('Config audit log notice:', logErr);
+      }
+    } catch (err) {
+      console.error('Error saving agent configuration in Firestore:', err);
+      setConfigSaveStatus({
+        type: 'error',
+        message: 'Error al guardar la configuración en Firestore.',
+      });
+      handleFirestoreError(err, OperationType.WRITE, `ai_agents/${configuredDoc.id}`);
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
 
   // 24/7 Continuous Background Autonomous Execution Ticker
   useEffect(() => {
@@ -642,6 +1139,8 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
             role: randomAgent.role,
             customSkillName: randomAgent.customSkillName,
             trainedInstructions: randomAgent.trainedInstructions,
+            baseUrl: randomAgent.baseUrl,
+            model: randomAgent.model,
             prompt: `Ejecución automática 24/7 de la habilidad "${randomAgent.customSkillName}"`,
             isAutonomousRun: true,
           }),
@@ -663,12 +1162,15 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
         // Write to Firestore with fallback
         try {
           await addDoc(collection(db, 'ai_agent_logs'), newLogEntry);
-          await updateDoc(doc(db, 'ai_agents', randomAgent.id), {
-            lastRunTimestamp: timeFormatted,
-            status: 'autonomous',
-          });
+          await setDoc(
+            doc(db, 'ai_agents', randomAgent.id),
+            {
+              lastRunTimestamp: timeFormatted,
+              status: 'autonomous',
+            },
+            { merge: true }
+          );
         } catch (dbErr) {
-          // Fallback to local state if Firestore document update encounters temporary sync delay
           setLogs((prev) => [
             { id: `log_${Date.now()}`, ...newLogEntry },
             ...prev.slice(0, 49),
@@ -680,7 +1182,7 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
       } catch (err) {
         console.warn('24/7 Autonomous background tick executed with local state fallback.');
       }
-    }, 12000); // Fired every 12 seconds in live preview for immediate visual 24/7 feedback
+    }, 12000);
 
     return () => clearInterval(intervalId);
   }, [agents, master247Active]);
@@ -688,50 +1190,75 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
   // Handle New Agent Creation
   const handleCreateAgent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newAgent.name.trim() || !newAgent.customSkillName.trim()) return;
+    const validation = validateAgentConfiguration({
+      name: newAgent.name,
+      trainedInstructions: newAgent.trainedInstructions,
+      baseUrl: newAgent.baseUrl,
+    });
 
+    if (!validation.valid) {
+      setCreateModalErrors(validation.errors);
+      return;
+    }
+
+    setCreateModalErrors({});
     const newId = `agent_${Date.now()}`;
-    const capsArray = newAgent.capabilities.split(',').map((c) => c.trim()).filter(Boolean);
-
-    const createdAgent: AiAgent = {
-      id: newId,
-      name: newAgent.name.trim(),
-      role: newAgent.role.trim() || 'Especialista en IA',
-      description: newAgent.description.trim() || 'Agente de IA entrenado para tareas autónomas.',
-      customSkillName: newAgent.customSkillName.trim(),
-      trainedInstructions: newAgent.trainedInstructions.trim() || 'Aplicar el entrenamiento con máxima precisión.',
-      model: newAgent.model,
-      icon: newAgent.icon,
-      status: newAgent.isAutonomous247 ? 'autonomous' : 'active',
-      capabilities: capsArray.length > 0 ? capsArray : ['Habilidad Entrenada', 'Ejecución 24/7'],
-      executionInterval: Number(newAgent.executionInterval) || 30,
-      isAutonomous247: newAgent.isAutonomous247,
-      createdAt: new Date().toISOString(),
-    };
+    const createdAgent: AiAgent = buildConfiguredAgentDocument(
+      {
+        name: newAgent.name,
+        trainedInstructions: newAgent.trainedInstructions,
+        baseUrl: newAgent.baseUrl,
+        role: newAgent.role || 'Especialista en IA',
+        description: newAgent.description || 'Agente de IA configurado y guardado en Firestore.',
+        customSkillName: newAgent.customSkillName || newAgent.name,
+        model: newAgent.model,
+        icon: newAgent.icon,
+        capabilities: newAgent.capabilities,
+        executionInterval: newAgent.executionInterval,
+        isAutonomous247: newAgent.isAutonomous247,
+      },
+      { id: newId }
+    );
 
     try {
-      await setDoc(doc(db, 'ai_agents', newId), createdAgent);
+      await setDoc(doc(db, 'ai_agents', newId), createdAgent, { merge: true });
+
+      setAgents((prev) => [createdAgent, ...prev]);
 
       // Add log
-      await addDoc(collection(db, 'ai_agent_logs'), {
-        agentId: newId,
-        agentName: createdAgent.name,
-        skillExecuted: `Creación y Entrenamiento Inicial: ${createdAgent.customSkillName}`,
-        outputSummary: `El agente "${createdAgent.name}" ha sido creado y entrenado exitosamente con la habilidad "${createdAgent.customSkillName}".`,
-        status: 'completed',
-        timestamp: `${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES')}`,
-      });
+      try {
+        await addDoc(collection(db, 'ai_agent_logs'), {
+          agentId: newId,
+          agentName: createdAgent.name,
+          skillExecuted: `Creación y Configuración Inicial: ${createdAgent.customSkillName}`,
+          outputSummary: `El agente "${createdAgent.name}" ha sido creado y guardado en la colección ai_agents con URL base ${createdAgent.baseUrl}.`,
+          status: 'completed',
+          timestamp: `${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES')}`,
+        });
+      } catch (logErr) {
+        console.warn('Create agent log notice:', logErr);
+      }
 
+      syncedAgentIdRef.current = newId;
       setSelectedAgentId(newId);
+      setBrowserStartUrl(createdAgent.baseUrl || 'https://nexuswebstudio.com');
+      setConfigForm({
+        name: createdAgent.name,
+        trainedInstructions: createdAgent.trainedInstructions,
+        baseUrl: createdAgent.baseUrl || '',
+        role: createdAgent.role,
+        model: createdAgent.model,
+      });
       setIsCreateModalOpen(false);
-      showToast(`¡El agente "${createdAgent.name}" ha sido creado y guardado en Firebase!`, 'success');
+      showToast(`¡El agente "${createdAgent.name}" ha sido creado y guardado en Firebase (ai_agents)!`, 'success');
       setNewAgent({
         name: '',
         role: '',
         description: '',
         customSkillName: '',
         trainedInstructions: '',
-        model: 'Gemini 2.5 Flash',
+        baseUrl: 'https://nexuswebstudio.com',
+        model: 'Gemini 3.8 Flash',
         icon: 'Brain',
         capabilities: 'Monitoreo, Auditoría, Reporte',
         executionInterval: 30,
@@ -748,27 +1275,52 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
     e.preventDefault();
     if (!selectedAgent) return;
 
-    try {
-      await updateDoc(doc(db, 'ai_agents', selectedAgent.id), {
-        customSkillName: trainingData.customSkillName,
-        trainedInstructions: trainingData.trainedInstructions,
-        executionInterval: Number(trainingData.executionInterval),
-        model: trainingData.model,
-        isAutonomous247: trainingData.isAutonomous247,
-        status: trainingData.isAutonomous247 ? 'autonomous' : 'active',
-      });
+    const normalizedUrl = normalizeAgentBaseUrl(
+      trainingData.baseUrl || selectedAgent.baseUrl || 'https://nexuswebstudio.com'
+    );
 
-      await addDoc(collection(db, 'ai_agent_logs'), {
-        agentId: selectedAgent.id,
-        agentName: selectedAgent.name,
-        skillExecuted: `Re-Entrenamiento de Habilidad`,
-        outputSummary: `Se actualizó el entrenamiento de "${trainingData.customSkillName}". Instrucciones de habilidad reconfiguradas.`,
-        status: 'completed',
-        timestamp: `${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES')}`,
-      });
+    const updatedPayload = {
+      customSkillName: trainingData.customSkillName,
+      trainedInstructions: trainingData.trainedInstructions,
+      baseUrl: normalizedUrl,
+      executionInterval: Number(trainingData.executionInterval),
+      model: trainingData.model,
+      isAutonomous247: trainingData.isAutonomous247,
+      status: (trainingData.isAutonomous247 ? 'autonomous' : 'active') as AiAgent['status'],
+      updatedAt: new Date().toISOString(),
+    };
+
+    try {
+      await setDoc(doc(db, 'ai_agents', selectedAgent.id), updatedPayload, { merge: true });
+
+      setAgents((prev) =>
+        prev.map((a) => (a.id === selectedAgent.id ? { ...a, ...updatedPayload } : a))
+      );
+      setBrowserStartUrl(normalizedUrl);
+      if (configMode === 'edit') {
+        setConfigForm((prev) => ({
+          ...prev,
+          trainedInstructions: trainingData.trainedInstructions,
+          baseUrl: normalizedUrl,
+          model: trainingData.model,
+        }));
+      }
+
+      try {
+        await addDoc(collection(db, 'ai_agent_logs'), {
+          agentId: selectedAgent.id,
+          agentName: selectedAgent.name,
+          skillExecuted: `Re-Entrenamiento de Habilidad`,
+          outputSummary: `Se actualizó el entrenamiento de "${trainingData.customSkillName}" (URL Base: ${normalizedUrl}).`,
+          status: 'completed',
+          timestamp: `${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES')}`,
+        });
+      } catch (logErr) {
+        console.warn('Training audit log notice:', logErr);
+      }
 
       showToast(
-        `¡Agente "${selectedAgent.name}" guardado y reentrenado con éxito!`,
+        `¡Agente "${selectedAgent.name}" guardado y reentrenado con éxito en Firestore!`,
         'success'
       );
     } catch (err) {
@@ -901,60 +1453,194 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
     }
   };
 
-  // Send Chat Message
+  // Helper to extract URLs from text
+  const extractUrlFromString = (text: string): string | undefined => {
+    return extractUrlFromPrompt(text);
+  };
+
+  // Send Multi-Turn Chat Message using Selected Agent's System Prompt & Context Configuration
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!promptInput.trim() || !selectedAgent) return;
 
+    const targetAgent = selectedAgent;
     const userText = promptInput.trim();
-    const now = new Date();
-    const timeStr = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
+    const timeStr = formatTimeHHMM();
+    const userDetectedUrl = extractUrlFromString(userText);
+    const priorMessages = activeChatMessages;
 
-    setChatMessages((prev) => [...prev, { sender: 'user', text: userText, timestamp: timeStr }]);
+    const currentConvId =
+      activeConversationIdByAgent[targetAgent.id] || `conv_${Date.now()}`;
+    if (!activeConversationIdByAgent[targetAgent.id]) {
+      setActiveConversationIdByAgent((prev) => ({
+        ...prev,
+        [targetAgent.id]: currentConvId,
+      }));
+    }
+    const existingConv = chatHistorySessions.find((s) => s.id === currentConvId);
+
+    const userMsg: ChatMessageItem = {
+      id: `user_${Date.now()}`,
+      sender: 'user',
+      text: userText,
+      timestamp: timeStr,
+      detectedUrl: userDetectedUrl,
+    };
+
+    setChatThreadsByAgent((prev) => ({
+      ...prev,
+      [targetAgent.id]: [...priorMessages, userMsg],
+    }));
+
+    setInFlightMessagesByAgent((prev) => ({
+      ...prev,
+      [targetAgent.id]: (prev[targetAgent.id] || 0) + 1,
+    }));
+
     setPromptInput('');
     setIsProcessing(true);
 
+    let completedThread: ChatMessageItem[] = [...priorMessages, userMsg];
+
     try {
+      const effectiveBaseUrl = includeBaseUrlContext ? targetAgent.baseUrl : undefined;
+      const effectiveCapabilities = includeCapabilitiesContext ? targetAgent.capabilities : [];
+
       const response = await fetch('/api/gemini-agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          agentName: selectedAgent.name,
-          role: selectedAgent.role,
-          customSkillName: selectedAgent.customSkillName,
-          trainedInstructions: selectedAgent.trainedInstructions,
+          agentName: targetAgent.name,
+          role: targetAgent.role,
+          customSkillName: targetAgent.customSkillName,
+          description: targetAgent.description,
+          trainedInstructions: targetAgent.trainedInstructions,
+          baseUrl: effectiveBaseUrl,
+          capabilities: effectiveCapabilities,
+          sessionContext: sessionContextNote.trim() || undefined,
+          model: targetAgent.model,
           prompt: userText,
+          history: priorMessages,
           isAutonomousRun: false,
         }),
       });
 
       const data = await response.json();
-      setChatMessages((prev) => [
+      const outputText =
+        data.output ||
+        `[${targetAgent.name}]: Respuesta generada aplicando la habilidad "${targetAgent.customSkillName}".`;
+      const agentDetectedUrl =
+        extractUrlFromString(outputText) || userDetectedUrl || effectiveBaseUrl;
+
+      const replyTimeStr = formatTimeHHMM();
+      const agentMsg: ChatMessageItem = {
+        id: `agent_${Date.now() + 1}`,
+        sender: 'agent',
+        agentName: targetAgent.name,
+        text: outputText,
+        timestamp: replyTimeStr,
+        detectedUrl: agentDetectedUrl,
+      };
+
+      completedThread = [...priorMessages, userMsg, agentMsg];
+      setChatThreadsByAgent((prev) => ({
         ...prev,
-        {
-          sender: 'agent',
-          text: data.output || `[${selectedAgent.name}]: Respuesta generada aplicando la habilidad "${selectedAgent.customSkillName}".`,
-          timestamp: timeStr,
-        },
-      ]);
+        [targetAgent.id]: completedThread,
+      }));
     } catch (err) {
       console.error('Error sending chat query:', err);
-      setChatMessages((prev) => [
+      const errorMsg: ChatMessageItem = {
+        id: `agent_err_${Date.now() + 1}`,
+        sender: 'agent',
+        agentName: targetAgent.name,
+        text: `[${targetAgent.name}]: Ocurrió un inconveniente al procesar la respuesta. Intenta nuevamente.`,
+        timestamp: formatTimeHHMM(),
+        detectedUrl: userDetectedUrl || targetAgent.baseUrl,
+      };
+      completedThread = [...priorMessages, userMsg, errorMsg];
+      setChatThreadsByAgent((prev) => ({
         ...prev,
-        {
-          sender: 'agent',
-          text: `[${selectedAgent.name}]: Ocurrió un inconveniente al procesar la respuesta. Intenta nuevamente.`,
-          timestamp: timeStr,
-        },
-      ]);
+        [targetAgent.id]: completedThread,
+      }));
     } finally {
       setIsProcessing(false);
+      let nextMessagesCount = (targetAgent.messagesCount || 0) + 2;
+      setAgents((prev) =>
+        prev.map((ag) => {
+          if (ag.id === targetAgent.id) {
+            nextMessagesCount = (ag.messagesCount || 0) + 2;
+            return { ...ag, messagesCount: nextMessagesCount };
+          }
+          return ag;
+        })
+      );
+      setInFlightMessagesByAgent((prev) => ({
+        ...prev,
+        [targetAgent.id]: Math.max(0, (prev[targetAgent.id] || 0) - 1),
+      }));
+
+      const savedSession = buildChatConversationSession({
+        id: currentConvId,
+        agent: targetAgent,
+        messages: completedThread,
+        sessionContext: sessionContextNote,
+        includeBaseUrlContext,
+        includeCapabilitiesContext,
+        existingCreatedAt: existingConv?.createdAt,
+      });
+
+      setChatHistorySessions((prev) => {
+        const remaining = prev.filter((s) => s.id !== savedSession.id);
+        return [savedSession, ...remaining];
+      });
+
+      try {
+        await setDoc(
+          doc(db, 'ai_agents', targetAgent.id),
+          {
+            messagesCount: nextMessagesCount,
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (dbErr) {
+        console.warn('Firestore messagesCount update notice:', dbErr);
+      }
+
+      try {
+        await setDoc(doc(db, 'ai_agent_conversations', savedSession.id), savedSession, {
+          merge: true,
+        });
+      } catch (convErr) {
+        console.warn('Firestore chat conversation save error:', convErr);
+        handleFirestoreError(
+          convErr,
+          OperationType.WRITE,
+          `ai_agent_conversations/${savedSession.id}`
+        );
+      }
     }
   };
 
   // Icon Helper Component
   const renderAgentIcon = (iconName: string, className: string = 'w-5 h-5') => {
     switch (iconName) {
+      case 'Crown':
+        return <Crown className={className} />;
+      case 'DollarSign':
+        return <DollarSign className={className} />;
+      case 'ClipboardList':
+        return <ClipboardList className={className} />;
+      case 'Target':
+        return <Target className={className} />;
+      case 'Briefcase':
+        return <Briefcase className={className} />;
+      case 'Award':
+        return <Award className={className} />;
+      case 'TrendingUp':
+        return <TrendingUp className={className} />;
+      case 'Building2':
+        return <Building2 className={className} />;
       case 'Code':
         return <Code className={className} />;
       case 'ShieldCheck':
@@ -1390,52 +2076,76 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-2 overflow-x-auto">
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-800 pb-3">
         <button
-          onClick={() => setActiveTab('agents')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-            activeTab === 'agents'
-              ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30'
+          onClick={() => setActiveTab('chat')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+            activeTab === 'chat'
+              ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-600/30'
               : 'text-slate-400 hover:text-white hover:bg-slate-900'
           }`}
         >
-          <Bot className="w-4 h-4" />
-          <span>Catálogo de Agentes ({agents.length})</span>
+          <Sparkles className="w-3.5 h-3.5 text-purple-300 shrink-0" />
+          <span>Studio Chat & Config</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer tabular-nums ${
+            activeTab === 'history'
+              ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-600/30'
+              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+          }`}
+        >
+          <History className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
+          <span>Historial de Chat ({chatHistorySessions.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('browser')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
             activeTab === 'browser'
               ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-600/30'
               : 'text-slate-400 hover:text-white hover:bg-slate-900'
           }`}
         >
-          <Globe className="w-4 h-4 text-emerald-400" />
-          <span>Navegador Web & Redes Sociales</span>
+          <Globe className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+          <span>Navegador Web</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('agents')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer tabular-nums ${
+            activeTab === 'agents'
+              ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30'
+              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+          }`}
+        >
+          <Bot className="w-3.5 h-3.5 shrink-0" />
+          <span>Agentes ({agents.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('training')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
             activeTab === 'training'
               ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
               : 'text-slate-400 hover:text-white hover:bg-slate-900'
           }`}
         >
-          <Brain className="w-4 h-4" />
-          <span>Entrenar Habilidad Propia</span>
+          <Brain className="w-3.5 h-3.5 shrink-0" />
+          <span>Entrenamiento</span>
         </button>
 
         <button
           onClick={() => setActiveTab('logs')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 relative ${
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 relative cursor-pointer tabular-nums ${
             activeTab === 'logs'
               ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
               : 'text-slate-400 hover:text-white hover:bg-slate-900'
           }`}
         >
-          <Terminal className="w-4 h-4" />
+          <Terminal className="w-3.5 h-3.5 shrink-0" />
           <span>Auditoría 24/7 ({logs.length})</span>
           {master247Active && (
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping absolute top-1 right-1" />
@@ -1444,31 +2154,35 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
 
         <button
           onClick={() => setActiveTab('webhooks')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 relative ${
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 relative cursor-pointer tabular-nums ${
             activeTab === 'webhooks'
               ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/30'
               : 'text-slate-400 hover:text-white hover:bg-slate-900'
           }`}
         >
-          <Radio className="w-4 h-4 text-amber-300 animate-pulse" />
-          <span>Webhooks & Triggers Proyectos ({webhookEvents.length})</span>
+          <Radio className="w-3.5 h-3.5 text-amber-300 animate-pulse shrink-0" />
+          <span>Webhooks ({webhookEvents.length})</span>
           {webhookEvents.some((w) => w.status === 'dispatched') && (
             <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping absolute top-1 right-1" />
           )}
         </button>
-
-        <button
-          onClick={() => setActiveTab('chat')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-            activeTab === 'chat'
-              ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
-          }`}
-        >
-          <Sparkles className="w-4 h-4" />
-          <span>Playground de Prueba</span>
-        </button>
       </div>
+
+      {/* TAB HISTORIAL DE CONVERSACIONES POR FECHA Y AGENTE */}
+      {activeTab === 'history' && (
+        <ChatHistoryPanel
+          sessions={chatHistorySessions}
+          agents={agents}
+          activeAgentId={selectedAgentId}
+          onResumeConversation={handleResumeConversation}
+          onDeleteConversation={handleDeleteConversation}
+          onNavigateToChat={() => setActiveTab('chat')}
+          onOpenBrowserUrl={(url) => {
+            setBrowserStartUrl(normalizeAgentBaseUrl(url));
+            setActiveTab('browser');
+          }}
+        />
+      )}
 
       {/* TAB NAVEGADOR WEB & REDES SOCIALES */}
       {activeTab === 'browser' && (
@@ -1527,8 +2241,8 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
 
                   <p className="text-xs text-slate-300 leading-relaxed">{ag.description}</p>
 
-                  {/* Trained Skill Box */}
-                  <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-3 space-y-1">
+                  {/* Trained Skill & Base URL Box */}
+                  <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-3 space-y-1.5">
                     <div className="flex items-center justify-between text-[11px] font-bold text-purple-400">
                       <span className="flex items-center gap-1">
                         <Brain className="w-3.5 h-3.5" /> Habilidad Entrenada:
@@ -1537,6 +2251,22 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
                     </div>
                     <p className="text-xs text-white font-medium">{ag.customSkillName}</p>
                     <p className="text-[11px] text-slate-400 line-clamp-2 italic">{ag.trainedInstructions}</p>
+                    {ag.baseUrl && (
+                      <div className="pt-1.5 mt-1 border-t border-slate-800/80 flex items-center justify-between gap-2 text-[11px] font-mono">
+                        <span className="text-cyan-400 truncate">🌐 {ag.baseUrl}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleSelectAgent(ag.id);
+                            setBrowserStartUrl(normalizeAgentBaseUrl(ag.baseUrl || ''));
+                            setActiveTab('browser');
+                          }}
+                          className="text-[10px] px-2 py-0.5 bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 rounded-md shrink-0 cursor-pointer"
+                        >
+                          Abrir
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Capabilities tags */}
@@ -1581,24 +2311,38 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
                     <span>Abrir Navegador & Vincular WhatsApp</span>
                   </button>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <button
+                      type="button"
                       onClick={() => {
-                        setSelectedAgentId(ag.id);
-                        setActiveTab('training');
+                        handleSelectAgent(ag.id);
+                        setActiveTab('chat');
                       }}
-                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors border border-slate-700"
+                      className="px-2.5 py-2 bg-purple-950/90 hover:bg-purple-900 text-purple-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1 transition-colors border border-purple-700/70 cursor-pointer"
                     >
-                      <Sliders className="w-3.5 h-3.5 text-purple-400" />
-                      <span>Entrenar</span>
+                      <MessageSquare className="w-3.5 h-3.5 text-purple-300" />
+                      <span>Chatear</span>
                     </button>
 
                     <button
+                      type="button"
+                      onClick={() => {
+                        handleSelectAgent(ag.id);
+                        setActiveTab('chat');
+                      }}
+                      className="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center justify-center gap-1 transition-colors border border-slate-700 cursor-pointer"
+                    >
+                      <Sliders className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Configurar</span>
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => openLiveTestModal(ag)}
-                      className="px-3 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md shadow-cyan-600/20 cursor-pointer"
+                      className="px-2.5 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1 transition-all shadow-md shadow-cyan-600/20 cursor-pointer"
                     >
                       <Play className="w-3.5 h-3.5 fill-current text-white" />
-                      <span>Ejecutar Agente</span>
+                      <span>Ejecutar</span>
                     </button>
                   </div>
                 </div>
@@ -1668,12 +2412,25 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
                   onChange={(e) => setTrainingData({ ...trainingData, model: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500"
                 >
-                  <option value="Gemini 2.5 Flash">Gemini 2.5 Flash (Ultrarrápido)</option>
-                  <option value="Gemini 2.5 Pro">Gemini 2.5 Pro (Razonamiento Complejo)</option>
-                  <option value="Gemini 2.5 Security">Gemini 2.5 Security (Auditoría & Parches)</option>
-                  <option value="Gemini 2.5 Thinking">Gemini 2.5 Thinking (Pensamiento Profundo)</option>
+                  <option value="Gemini 3.8 Flash">Gemini 3.8 Flash (Recomendado)</option>
+                  <option value="Gemini 3.1 Flash Lite">Gemini 3.1 Flash Lite (Ligero y Rápido)</option>
+                  <option value="Gemini Flash Latest">Gemini Flash Latest</option>
                 </select>
               </div>
+            </div>
+
+            {/* URL Base del Agente en Tab Entrenamiento */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <Globe className="w-4 h-4 text-cyan-400" /> URL Base del Agente:
+              </label>
+              <input
+                type="text"
+                value={trainingData.baseUrl}
+                onChange={(e) => setTrainingData({ ...trainingData, baseUrl: e.target.value })}
+                placeholder="Ej: https://nexuswebstudio.com"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
+              />
             </div>
 
             {/* Instrucciones de Entrenamiento (Prompt de Sistema) */}
@@ -2069,84 +2826,668 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
         </div>
       )}
 
-      {/* TAB 5: PLAYGROUND DE CHAT INTERACTIVO */}
+      {/* TAB 5: STUDIO CHATGPT & GEMINI + CONFIGURACIÓN DE AGENTE (ai_agents) */}
       {activeTab === 'chat' && selectedAgent && (
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-2xl">
-          <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-cyan-950 border border-cyan-800 rounded-2xl text-cyan-400">
-                {renderAgentIcon(selectedAgent.icon, 'w-6 h-6')}
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-white">{selectedAgent.name}</h2>
-                <p className="text-xs text-cyan-400 font-semibold">
-                  Habilidad Entrenada: {selectedAgent.customSkillName} ({selectedAgent.model})
-                </p>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start animate-in fade-in duration-200">
+          
+          {/* LEFT COLUMN: FORMULARIO DE CONFIGURACIÓN DEL AGENTE -> FIRESTORE ai_agents */}
+          <div className="lg:col-span-5 min-w-0 bg-slate-900 border border-cyan-800/50 rounded-3xl p-6 space-y-4 shadow-2xl">
+            <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 bg-cyan-950 border border-cyan-800 rounded-2xl text-cyan-400 shrink-0">
+                  <Sliders className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white leading-tight">
+                    Configuración de Agente de IA
+                  </h2>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Guarda nombre, sistema de prompts y URL base en Firestore (<code className="text-cyan-400 font-mono">ai_agents</code>)
+                  </p>
+                </div>
               </div>
             </div>
 
-            <button
-              onClick={() => setChatMessages([])}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Limpiar Chat</span>
-            </button>
+            {/* Mode Toggle: Editar Seleccionado vs Crear Nuevo Agente */}
+            <div className="grid grid-cols-2 gap-2 bg-slate-950 p-1.5 rounded-2xl border border-slate-800 text-xs">
+              <button
+                type="button"
+                onClick={() => handleSwitchConfigMode('edit')}
+                className={`py-2 px-3 rounded-xl font-bold transition-all cursor-pointer ${
+                  configMode === 'edit'
+                    ? 'bg-cyan-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Editar Seleccionado
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSwitchConfigMode('create')}
+                className={`py-2 px-3 rounded-xl font-bold transition-all cursor-pointer ${
+                  configMode === 'create'
+                    ? 'bg-purple-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                + Nuevo Agente
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAgentConfig} noValidate className="space-y-4 text-xs">
+              {/* Campo 1: Nombre del Agente */}
+              <div className="space-y-1.5">
+                <label htmlFor="agent-config-name" className="font-bold text-slate-200 flex items-center gap-1.5">
+                  <Bot className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Nombre del Agente *</span>
+                </label>
+                <input
+                  id="agent-config-name"
+                  name="name"
+                  type="text"
+                  value={configForm.name}
+                  onChange={(e) => {
+                    isConfigDirtyRef.current = true;
+                    setConfigForm({ ...configForm, name: e.target.value });
+                    if (configErrors.name) setConfigErrors({ ...configErrors, name: undefined });
+                  }}
+                  placeholder="Ej: Agente Analista Web Nexus"
+                  className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none font-sans ${
+                    configErrors.name
+                      ? 'border-rose-500 focus:border-rose-400'
+                      : 'border-slate-800 focus:border-cyan-500'
+                  }`}
+                />
+                {configErrors.name && (
+                  <p role="alert" className="text-[11px] text-rose-400 font-semibold">
+                    {configErrors.name}
+                  </p>
+                )}
+              </div>
+
+              {/* Campo 2: Sistema de Prompts (Instrucciones) */}
+              <div className="space-y-1.5">
+                <label htmlFor="agent-config-prompt" className="font-bold text-slate-200 flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Sistema de Prompts (Instrucciones) *</span>
+                </label>
+                <textarea
+                  id="agent-config-prompt"
+                  name="trainedInstructions"
+                  rows={4}
+                  value={configForm.trainedInstructions}
+                  onChange={(e) => {
+                    isConfigDirtyRef.current = true;
+                    setConfigForm({ ...configForm, trainedInstructions: e.target.value });
+                    if (configErrors.trainedInstructions) {
+                      setConfigErrors({ ...configErrors, trainedInstructions: undefined });
+                    }
+                  }}
+                  placeholder="Escribe las instrucciones del sistema, objetivos, tono de respuesta y reglas de operación para el agente..."
+                  className={`w-full bg-slate-950 border rounded-xl p-3 text-xs text-slate-100 focus:outline-none font-mono leading-relaxed ${
+                    configErrors.trainedInstructions
+                      ? 'border-rose-500 focus:border-rose-400'
+                      : 'border-slate-800 focus:border-purple-500'
+                  }`}
+                />
+                {configErrors.trainedInstructions && (
+                  <p role="alert" className="text-[11px] text-rose-400 font-semibold">
+                    {configErrors.trainedInstructions}
+                  </p>
+                )}
+              </div>
+
+              {/* Campo 3: URL Base del Agente */}
+              <div className="space-y-1.5">
+                <label htmlFor="agent-config-base-url" className="font-bold text-slate-200 flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>URL Base del Agente *</span>
+                </label>
+                <input
+                  id="agent-config-base-url"
+                  name="baseUrl"
+                  type="text"
+                  value={configForm.baseUrl}
+                  onChange={(e) => {
+                    isConfigDirtyRef.current = true;
+                    setConfigForm({ ...configForm, baseUrl: e.target.value });
+                    if (configErrors.baseUrl) setConfigErrors({ ...configErrors, baseUrl: undefined });
+                  }}
+                  placeholder="Ej: https://nexuswebstudio.com"
+                  className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none font-mono ${
+                    configErrors.baseUrl
+                      ? 'border-rose-500 focus:border-rose-400'
+                      : 'border-slate-800 focus:border-emerald-500'
+                  }`}
+                />
+                {configErrors.baseUrl && (
+                  <p role="alert" className="text-[11px] text-rose-400 font-semibold">
+                    {configErrors.baseUrl}
+                  </p>
+                )}
+              </div>
+
+              {/* Campos opcionales: Rol y Modelo */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1">
+                  <label htmlFor="agent-config-role" className="font-semibold text-slate-300 block">
+                    Rol / Especialidad
+                  </label>
+                  <input
+                    id="agent-config-role"
+                    type="text"
+                    value={configForm.role}
+                    onChange={(e) => setConfigForm({ ...configForm, role: e.target.value })}
+                    placeholder="Especialista IA"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label htmlFor="agent-config-model" className="font-semibold text-slate-300 block">
+                    Modelo Gemini
+                  </label>
+                  <select
+                    id="agent-config-model"
+                    value={configForm.model}
+                    onChange={(e) => setConfigForm({ ...configForm, model: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                  >
+                    <option value="Gemini 3.8 Flash">Gemini 3.8 Flash</option>
+                    <option value="Gemini 3.1 Flash Lite">Gemini 3.1 Flash Lite</option>
+                    <option value="Gemini Flash Latest">Gemini Flash Latest</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Feedback Banner */}
+              {configSaveStatus && (
+                <div
+                  role="status"
+                  className={`p-3 rounded-xl border text-xs font-semibold flex items-start gap-2 ${
+                    configSaveStatus.type === 'success'
+                      ? 'bg-emerald-950/80 border-emerald-700 text-emerald-200'
+                      : 'bg-rose-950/80 border-rose-700 text-rose-200'
+                  }`}
+                >
+                  <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
+                  <span>{configSaveStatus.message}</span>
+                </div>
+              )}
+
+              {/* Submit & Browse Actions */}
+              <div className="flex flex-col 2xl:flex-row gap-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={isSavingConfig}
+                  className="flex-1 py-2.5 px-4 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-950 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                >
+                  {isSavingConfig ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                      <span>Guardando en Firestore...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      <span>
+                        {configMode === 'create'
+                          ? 'Crear y Guardar en Firestore (ai_agents)'
+                          : 'Guardar Configuración en Firestore'}
+                      </span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const targetUrl =
+                      normalizeAgentBaseUrl(configForm.baseUrl) ||
+                      selectedAgent.baseUrl ||
+                      'https://nexuswebstudio.com';
+                    setBrowserStartUrl(targetUrl);
+                    setActiveTab('browser');
+                  }}
+                  className="py-2.5 px-3.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold text-xs rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0 whitespace-nowrap"
+                  title="Abrir URL base en el navegador integrado"
+                >
+                  <Globe className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>Probar URL</span>
+                </button>
+              </div>
+            </form>
           </div>
 
-          <div className="h-80 overflow-y-auto bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3 font-sans text-xs">
-            {chatMessages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-slate-500 font-mono text-center gap-2">
-                <Brain className="w-8 h-8 text-slate-600" />
-                <span>Conversa directamente con {selectedAgent.name} aplicando su habilidad entrenada.</span>
+          {/* RIGHT COLUMN: STUDIO CHATGPT & GEMINI INTERACTIVO POR AGENTE */}
+          <div className="lg:col-span-7 min-w-0 bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-2xl">
+            
+            {/* Top Studio Controls: Saved Agent Selector + Context & Browser Actions */}
+            <div className="flex flex-col gap-3 pb-4 border-b border-slate-800">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label
+                  htmlFor="studio-agent-select"
+                  className="text-[11px] font-mono text-purple-300 font-bold uppercase tracking-wider flex items-center gap-2"
+                >
+                  <span className="p-1.5 bg-purple-950 border border-purple-800 rounded-lg text-purple-300 shrink-0">
+                    {renderAgentIcon(selectedAgent.icon, 'w-4 h-4')}
+                  </span>
+                  <span>Seleccionar Agente para Conversar ({agents.length})</span>
+                </label>
+
+                {/* Quick Action Studio Buttons */}
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedAgent.baseUrl) {
+                        setBrowserStartUrl(normalizeAgentBaseUrl(selectedAgent.baseUrl));
+                      }
+                      setActiveTab('browser');
+                    }}
+                    className="px-3 py-1.5 bg-emerald-950 hover:bg-emerald-900 border border-emerald-800 text-emerald-300 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
+                  >
+                    <Globe className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Abrir Navegador Web</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('history')}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-cyan-200 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap tabular-nums"
+                    title="Ver historial de conversaciones pasadas por fecha o agente"
+                  >
+                    <History className="w-3.5 h-3.5 shrink-0" />
+                    <span>Historial ({chatHistorySessions.length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextConvId = `conv_${Date.now()}`;
+                      setActiveConversationIdByAgent((prev) => ({
+                        ...prev,
+                        [selectedAgent.id]: nextConvId,
+                      }));
+                      setChatThreadsByAgent((prev) => ({
+                        ...prev,
+                        [selectedAgent.id]: [buildAgentWelcomeMessage(selectedAgent)],
+                      }));
+                    }}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap"
+                    title="Iniciar una nueva conversación manteniendo las anteriores en el historial"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+                    <span>Nueva Charla</span>
+                  </button>
+                </div>
               </div>
-            ) : (
-              chatMessages.map((msg, idx) => (
+
+              <select
+                id="studio-agent-select"
+                value={selectedAgentId}
+                onChange={(e) => handleSelectAgent(e.target.value)}
+                className="w-full bg-slate-950 text-white font-bold text-xs sm:text-sm border border-slate-800 rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-purple-500 cursor-pointer"
+              >
+                {agents.map((ag) => (
+                  <option key={ag.id} value={ag.id}>
+                    {ag.name} ({ag.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Active Agent System Prompt & Context Configuration Panel */}
+            <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-3.5 space-y-2.5 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-[11px] text-cyan-400 font-bold">
+                    URL Base: <span className="text-white">{selectedAgent.baseUrl || 'No configurada'}</span>
+                  </span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800">
+                    {selectedAgent.model}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowFullContextDrawer((prev) => !prev)}
+                  className="text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 underline cursor-pointer"
+                >
+                  {showFullContextDrawer ? 'Ocultar contexto' : 'Configurar / Ver contexto completo'}
+                </button>
+              </div>
+
+              <p className={`text-[11px] text-slate-300 font-mono ${showFullContextDrawer ? 'whitespace-pre-wrap' : 'line-clamp-2'}`}>
+                <strong className="text-purple-400">Prompt del Sistema:</strong> {selectedAgent.trainedInstructions}
+              </p>
+
+              {showFullContextDrawer && (
+                <div className="pt-2.5 border-t border-slate-800/90 space-y-2.5 animate-in fade-in duration-150">
+                  <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-300">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={includeBaseUrlContext}
+                        onChange={(e) => setIncludeBaseUrlContext(e.target.checked)}
+                        className="accent-cyan-500 rounded"
+                      />
+                      <span>Incluir URL Base en contexto</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={includeCapabilitiesContext}
+                        onChange={(e) => setIncludeCapabilitiesContext(e.target.checked)}
+                        className="accent-purple-500 rounded"
+                      />
+                      <span>Incluir Capacidades ({selectedAgent.capabilities.length})</span>
+                    </label>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="chat-session-context" className="text-[11px] font-semibold text-slate-300 block">
+                      Contexto Adicional de Conversación (opcional):
+                    </label>
+                    <input
+                      id="chat-session-context"
+                      type="text"
+                      value={sessionContextNote}
+                      onChange={(e) => setSessionContextNote(e.target.value)}
+                      placeholder="Ej: Prioriza recomendaciones de rendimiento React y seguridad Firestore..."
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Chat Messages Feed Stream */}
+            <div
+              ref={chatFeedRef}
+              className="h-80 overflow-y-auto bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-4 font-sans text-xs"
+            >
+              {activeChatMessages.map((msg) => (
                 <div
-                  key={idx}
+                  key={msg.id}
                   className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
                 >
                   <div
-                    className={`max-w-xl p-3.5 rounded-2xl text-xs leading-relaxed ${
+                    className={`max-w-full sm:max-w-2xl p-4 rounded-2xl text-xs leading-relaxed shadow-lg break-words overflow-hidden ${
                       msg.sender === 'user'
-                        ? 'bg-cyan-600 text-white font-medium rounded-br-none shadow-md'
-                        : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-bl-none shadow-md whitespace-pre-wrap'
+                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-medium rounded-br-none'
+                        : 'bg-slate-900 border border-slate-800 text-slate-100 rounded-bl-none whitespace-pre-wrap'
                     }`}
                   >
-                    {msg.text}
+                    <div className="flex items-center gap-2 mb-1 opacity-80 text-[10px] font-mono">
+                      {msg.sender === 'user' ? (
+                        <span className="font-bold">{currentUser.name} (Tú)</span>
+                      ) : (
+                        <span className="font-bold text-purple-300 flex items-center gap-1">
+                          <Bot className="w-3 h-3 text-purple-400 shrink-0" /> {msg.agentName || selectedAgent.name}
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="[overflow-wrap:anywhere]">{msg.text}</p>
+
+                    {/* Interactive URL Launcher Button */}
+                    {msg.detectedUrl && (
+                      <div className="mt-3 pt-2 border-t border-slate-800/80">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBrowserStartUrl(msg.detectedUrl!);
+                            setActiveTab('browser');
+                          }}
+                          className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow-lg flex items-center gap-2 transition-all cursor-pointer max-w-full text-left"
+                        >
+                          <Globe className="w-4 h-4 text-emerald-200 shrink-0" />
+                          <span className="truncate">Abrir "{msg.detectedUrl}" en Navegador Integrado</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
+
                   <span className="text-[10px] text-slate-500 font-mono mt-1 px-1">{msg.timestamp}</span>
                 </div>
-              ))
-            )}
+              ))}
 
-            {isProcessing && (
-              <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono p-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Aplicando la habilidad entrenada con Gemini SDK...</span>
+              {isProcessing && (
+                <div className="flex items-center gap-2 text-purple-400 text-xs font-mono p-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-purple-300" />
+                  <span>Procesando consulta con {selectedAgent.name}...</span>
+                </div>
+              )}
+            </div>
+
+            {/* Interactive Input Form */}
+            <form onSubmit={handleSendMessage} className="space-y-2">
+              <div className="flex flex-wrap sm:flex-nowrap gap-2">
+                <input
+                  id="ai-chat-input"
+                  type="text"
+                  placeholder={`Escribe a ${selectedAgent.name} o pega una URL...`}
+                  value={promptInput}
+                  onChange={(e) => setPromptInput(e.target.value)}
+                  className="flex-1 min-w-0 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-purple-500 font-sans shadow-inner"
+                />
+
+                <button
+                  type="submit"
+                  disabled={isProcessing || !promptInput.trim()}
+                  className="px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-950 flex items-center gap-2 transition-all shrink-0 cursor-pointer"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>Enviar a IA</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url =
+                      extractUrlFromString(promptInput) ||
+                      selectedAgent.baseUrl ||
+                      'https://web.whatsapp.com';
+                    setBrowserStartUrl(url);
+                    setActiveTab('browser');
+                  }}
+                  className="px-3.5 py-3 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold text-xs rounded-xl border border-slate-700 flex items-center gap-1.5 transition-all shrink-0 cursor-pointer"
+                  title="Navegar URL ingresada en el Navegador Web"
+                >
+                  <Globe className="w-4 h-4 text-emerald-400" />
+                  <span className="hidden sm:inline">Navegar URL</span>
+                </button>
               </div>
-            )}
-          </div>
+            </form>
 
-          <form onSubmit={handleSendMessage} className="flex gap-2">
-            <input
-              type="text"
-              placeholder={`Solicita una tarea o consulta a ${selectedAgent.name}...`}
-              value={promptInput}
-              onChange={(e) => setPromptInput(e.target.value)}
-              className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-cyan-500 font-sans"
-            />
-            <button
-              type="submit"
-              disabled={isProcessing || !promptInput.trim()}
-              className="px-5 py-3 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-600/30 flex items-center gap-2 transition-all shrink-0"
-            >
-              <Send className="w-4 h-4" />
-              <span>Enviar Consulta</span>
-            </button>
-          </form>
+          </div>
         </div>
       )}
+
+      {/* ANALYTICS SECTION: MENSAJES INTERCAMBIADOS POR AGENTE (RECHARTS BAR CHART) */}
+      <section
+        id="ai-agents-analytics"
+        aria-labelledby="ai-agents-analytics-heading"
+        className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-5 shadow-2xl"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+          <div className="space-y-1">
+            <h2
+              id="ai-agents-analytics-heading"
+              className="text-base sm:text-lg font-bold text-white flex items-center gap-2"
+            >
+              <BarChart2 className="w-5 h-5 text-cyan-400 shrink-0" />
+              <span>Analíticas de Mensajes por Agente</span>
+            </h2>
+            <p className="text-xs text-slate-400">
+              Cantidad total de mensajes intercambiados con cada agente en el chat interactivo (haz clic en una barra para conversar con ese agente).
+            </p>
+          </div>
+
+          {/* Segmented Filter Tabs */}
+          <div className="flex items-center gap-1 p-1 bg-slate-950 border border-slate-800 rounded-xl shrink-0 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setAnalyticsOnlyActive(false)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                !analyticsOnlyActive
+                  ? 'bg-cyan-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Todos ({agentAnalytics.summary.totalAgentsCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setAnalyticsOnlyActive(true)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                analyticsOnlyActive
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Con mensajes ({agentAnalytics.summary.activeAgentsCount})
+            </button>
+          </div>
+        </div>
+
+        {/* Clean Unboxed Summary Metadata with Tabular Numerals */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-300 font-mono tabular-nums">
+          <span>
+            Total intercambiados:{' '}
+            <strong className="text-white">{agentAnalytics.summary.totalMessages}</strong> mensajes
+          </span>
+          <span className="text-slate-600" aria-hidden="true">
+            ·
+          </span>
+          <span>
+            Agentes con historial:{' '}
+            <strong className="text-cyan-400">{agentAnalytics.summary.activeAgentsCount}</strong> de{' '}
+            {agentAnalytics.summary.totalAgentsCount}
+          </span>
+          {agentAnalytics.summary.topAgentName && (
+            <>
+              <span className="text-slate-600" aria-hidden="true">
+                ·
+              </span>
+              <span>
+                Más activo:{' '}
+                <strong className="text-purple-300">{agentAnalytics.summary.topAgentName}</strong> (
+                {agentAnalytics.summary.topAgentMessages})
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* Empty / Zero-Messages Guidance Strip */}
+        {agentAnalytics.summary.totalMessages === 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 px-4 bg-slate-950/70 border border-slate-800/80 rounded-2xl text-xs text-slate-300">
+            <span>
+              Aún no se han intercambiado mensajes en el chat. Envía una consulta arriba para ver crecer las barras de actividad por agente.
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('chat');
+                document.getElementById('ai-chat-input')?.focus();
+              }}
+              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-lg text-xs transition-colors whitespace-nowrap shrink-0 cursor-pointer self-start sm:self-auto"
+            >
+              Iniciar conversación
+            </button>
+          </div>
+        )}
+
+        {/* Simple Responsive Recharts Bar Chart */}
+        {agentAnalytics.chartData.length === 0 ? (
+          <div className="h-56 flex flex-col items-center justify-center gap-3 bg-slate-950/60 border border-slate-800/70 rounded-2xl p-6 text-center">
+            <p className="text-xs text-slate-400">
+              Ningún agente registra mensajes intercambiados todavía con el filtro actual.
+            </p>
+            <button
+              type="button"
+              onClick={() => setAnalyticsOnlyActive(false)}
+              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+            >
+              Mostrar todos los agentes
+            </button>
+          </div>
+        ) : (
+          <div className="w-full h-72 min-w-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={agentAnalytics.chartData}
+                margin={{ top: 12, right: 20, left: 44, bottom: 34 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis
+                  dataKey="shortName"
+                  stroke="#94a3b8"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={{ stroke: '#334155' }}
+                  padding={{ left: 12, right: 8 }}
+                  interval="preserveStartEnd"
+                  minTickGap={18}
+                  angle={-18}
+                  textAnchor="end"
+                  height={62}
+                />
+                <YAxis
+                  allowDecimals={false}
+                  stroke="#94a3b8"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={false}
+                  width={36}
+                />
+                <Tooltip
+                  cursor={{ fill: 'rgba(148, 163, 184, 0.08)' }}
+                  content={({ active, payload }) => {
+                    if (!active || !payload || payload.length === 0) return null;
+                    const item = payload[0].payload as {
+                      name: string;
+                      role: string;
+                      messages: number;
+                    };
+                    return (
+                      <div className="bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 shadow-xl text-xs space-y-1">
+                        <p className="font-bold text-white">{item.name}</p>
+                        <p className="text-[11px] text-slate-400">{item.role}</p>
+                        <p className="font-mono tabular-nums text-cyan-300 font-bold pt-0.5">
+                          Mensajes intercambiados: {item.messages}
+                        </p>
+                      </div>
+                    );
+                  }}
+                />
+                <Bar
+                  dataKey="messages"
+                  name="Mensajes intercambiados"
+                  radius={[6, 6, 0, 0]}
+                  maxBarSize={44}
+                  className="cursor-pointer"
+                  onClick={(barEntry) => {
+                    const targetId = (barEntry as unknown as { id?: string })?.id;
+                    if (targetId) {
+                      handleSelectAgent(targetId);
+                      setActiveTab('chat');
+                    }
+                  }}
+                >
+                  {agentAnalytics.chartData.map((entry) => (
+                    <Cell
+                      key={entry.id}
+                      fill={entry.isSelected ? '#06b6d4' : '#8b5cf6'}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </section>
     </>
   )}
 
@@ -2172,39 +3513,79 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
               </button>
             </div>
 
-            <form onSubmit={handleCreateAgent} className="space-y-4 text-xs">
+            <form onSubmit={handleCreateAgent} noValidate className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="font-bold text-slate-300">Nombre del Agente:</label>
+                  <label htmlFor="modal-agent-name" className="font-bold text-slate-300">Nombre del Agente *:</label>
                   <input
+                    id="modal-agent-name"
                     type="text"
-                    required
                     placeholder="Ej: Nexus DevOps Sentinel"
                     value={newAgent.name}
-                    onChange={(e) => setNewAgent({ ...newAgent, name: e.target.value })}
+                    onChange={(e) => {
+                      setNewAgent({ ...newAgent, name: e.target.value });
+                      if (createModalErrors.name) setCreateModalErrors({ ...createModalErrors, name: undefined });
+                    }}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
                   />
+                  {createModalErrors.name && (
+                    <p role="alert" className="text-[11px] text-rose-400 font-semibold">{createModalErrors.name}</p>
+                  )}
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-bold text-slate-300">Rol / Especialidad:</label>
+                  <label htmlFor="modal-agent-base-url" className="font-bold text-slate-300">URL Base *:</label>
                   <input
+                    id="modal-agent-base-url"
                     type="text"
-                    required
+                    placeholder="Ej: https://nexuswebstudio.com"
+                    value={newAgent.baseUrl}
+                    onChange={(e) => {
+                      setNewAgent({ ...newAgent, baseUrl: e.target.value });
+                      if (createModalErrors.baseUrl) setCreateModalErrors({ ...createModalErrors, baseUrl: undefined });
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500 font-mono"
+                  />
+                  {createModalErrors.baseUrl && (
+                    <p role="alert" className="text-[11px] text-rose-400 font-semibold">{createModalErrors.baseUrl}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label htmlFor="modal-agent-role" className="font-bold text-slate-300">Rol / Especialidad:</label>
+                  <input
+                    id="modal-agent-role"
+                    type="text"
                     placeholder="Ej: Monitoreo & Despliegue CI/CD"
                     value={newAgent.role}
                     onChange={(e) => setNewAgent({ ...newAgent, role: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
                   />
                 </div>
+
+                <div className="space-y-1">
+                  <label htmlFor="modal-agent-model" className="font-bold text-slate-300">Modelo Gemini:</label>
+                  <select
+                    id="modal-agent-model"
+                    value={newAgent.model}
+                    onChange={(e) => setNewAgent({ ...newAgent, model: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                  >
+                    <option value="Gemini 3.8 Flash">Gemini 3.8 Flash</option>
+                    <option value="Gemini 3.1 Flash Lite">Gemini 3.1 Flash Lite</option>
+                    <option value="Gemini Flash Latest">Gemini Flash Latest</option>
+                  </select>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="font-bold text-slate-300">Habilidad Propia Entrenada:</label>
+                  <label htmlFor="modal-agent-skill" className="font-bold text-slate-300">Habilidad Propia Entrenada:</label>
                   <input
+                    id="modal-agent-skill"
                     type="text"
-                    required
                     placeholder="Ej: Auditoría de Logs y Alertas 24/7"
                     value={newAgent.customSkillName}
                     onChange={(e) => setNewAgent({ ...newAgent, customSkillName: e.target.value })}
@@ -2213,41 +3594,36 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-bold text-slate-300">Modelo Gemini:</label>
-                  <select
-                    value={newAgent.model}
-                    onChange={(e) => setNewAgent({ ...newAgent, model: e.target.value })}
+                  <label htmlFor="modal-agent-desc" className="font-bold text-slate-300">Descripción Breve:</label>
+                  <input
+                    id="modal-agent-desc"
+                    type="text"
+                    placeholder="Explica sintéticamente el propósito de este agente..."
+                    value={newAgent.description}
+                    onChange={(e) => setNewAgent({ ...newAgent, description: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
-                  >
-                    <option value="Gemini 2.5 Flash">Gemini 2.5 Flash</option>
-                    <option value="Gemini 2.5 Pro">Gemini 2.5 Pro</option>
-                    <option value="Gemini 2.5 Security">Gemini 2.5 Security</option>
-                    <option value="Gemini 2.5 Thinking">Gemini 2.5 Thinking</option>
-                  </select>
+                  />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="font-bold text-slate-300">Descripción Breve:</label>
-                <input
-                  type="text"
-                  placeholder="Explica sintéticamente el propósito de este agente..."
-                  value={newAgent.description}
-                  onChange={(e) => setNewAgent({ ...newAgent, description: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-bold text-slate-300">Instrucciones de Entrenamiento / System Prompt:</label>
+                <label htmlFor="modal-agent-prompt" className="font-bold text-slate-300">Sistema de Prompts / Instrucciones *:</label>
                 <textarea
+                  id="modal-agent-prompt"
                   rows={4}
-                  required
-                  placeholder="Detalla exactamente cómo debe responder y aplicar su habilidad entrenada..."
+                  placeholder="Detalla exactamente cómo debe responder y aplicar su configuración..."
                   value={newAgent.trainedInstructions}
-                  onChange={(e) => setNewAgent({ ...newAgent, trainedInstructions: e.target.value })}
+                  onChange={(e) => {
+                    setNewAgent({ ...newAgent, trainedInstructions: e.target.value });
+                    if (createModalErrors.trainedInstructions) {
+                      setCreateModalErrors({ ...createModalErrors, trainedInstructions: undefined });
+                    }
+                  }}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-cyan-500 font-mono"
                 />
+                {createModalErrors.trainedInstructions && (
+                  <p role="alert" className="text-[11px] text-rose-400 font-semibold">{createModalErrors.trainedInstructions}</p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

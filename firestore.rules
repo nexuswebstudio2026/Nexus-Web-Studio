@@ -55,5 +55,10 @@ service cloud.firestore {
     match /contact_messages/{messageId} {
       allow read, write: if true;
     }
+
+    // AI Agent Chat Conversations Collection
+    match /ai_agent_conversations/{conversationId} {
+      allow read, write: if true;
+    }
   }
 }

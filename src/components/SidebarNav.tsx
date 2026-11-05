@@ -83,6 +83,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
 
   const navItems: { id: RoleId; label: string; icon: any; badge?: string }[] = [
     { id: 'admin', label: 'Administración', icon: Building2 },
+    { id: 'ai_agents', label: 'Agentes de IA', icon: Bot, badge: 'IA' },
     {
       id: 'inbox',
       label: 'Bandeja de entrada',
@@ -90,21 +91,14 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
       badge: unreadInboxCount > 0 ? `${unreadInboxCount} N` : undefined,
     },
     { id: 'firebase_crud', label: 'Base de Datos (CRUD)', icon: Database, badge: 'DB' },
-    { id: 'accounting', label: 'Contabilidad', icon: DollarSign },
-    { id: 'support', label: 'Atención al cliente', icon: LifeBuoy },
-    { id: 'web_dev', label: 'Desarrollo web', icon: Code },
-    { id: 'mobile_dev', label: 'Desarrollo móvil', icon: Smartphone },
-    { id: 'qa_devops', label: 'QA', icon: ShieldAlert },
-    { id: 'client', label: 'Portal cliente', icon: UserCheck },
-    { id: 'ai_agents', label: 'Agentes de IA', icon: Bot, badge: 'IA' },
     { id: 'settings', label: 'Configuración', icon: Settings },
   ];
 
   return (
     <aside
       style={{ top: `${verticalOffset}px` }}
-      className={`bg-slate-950 border border-slate-800/90 rounded-3xl flex flex-col justify-between transition-all duration-300 shrink-0 select-none z-30 sticky h-[calc(100vh-2rem)] shadow-2xl ${
-        isCollapsed ? 'w-20' : 'w-64'
+      className={`bg-slate-950 border border-slate-800/90 rounded-3xl flex flex-col justify-between transition-all duration-300 shrink-0 select-none z-30 w-full md:sticky md:h-[calc(100vh-2rem)] shadow-2xl ${
+        isCollapsed ? 'md:w-20' : 'md:w-64'
       }`}
     >
       {/* Top Header / Branding */}
@@ -190,7 +184,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
         )}
 
         {/* Sidebar Nav Items List */}
-        <nav className="space-y-1">
+        <nav className="grid grid-cols-2 sm:flex sm:flex-wrap md:block gap-1.5 md:gap-0 md:space-y-1">
           {navItems.map((item) => {
             const IconComp = item.icon;
             const isActive = activeModuleRole === item.id;

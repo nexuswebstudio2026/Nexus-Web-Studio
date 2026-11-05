@@ -94,23 +94,60 @@ app.post('/api/contact', async (req, res) => {
 // API Endpoint for AI Agent Skill Execution with Gemini SDK (@google/genai)
 app.post('/api/gemini-agent', async (req, res) => {
   try {
-    const { agentName, role, customSkillName, trainedInstructions, prompt, isAutonomousRun } = req.body;
+    const {
+      agentName,
+      role,
+      customSkillName,
+      description,
+      trainedInstructions,
+      baseUrl,
+      capabilities,
+      sessionContext,
+      model,
+      prompt,
+      history,
+      isAutonomousRun,
+    } = req.body;
 
     const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+    const {
+      resolveGeminiModelId,
+      buildAgentSystemInstruction,
+      buildGeminiChatContents,
+    } = await import('./src/utils/agentConfig');
+    const resolvedModelId = resolveGeminiModelId(model);
+
+    const systemInstruction = buildAgentSystemInstruction({
+      agentName,
+      role,
+      customSkillName,
+      description,
+      trainedInstructions,
+      baseUrl,
+      capabilities,
+      sessionContext,
+    });
+
+    const userPromptText =
+      (typeof prompt === 'string' && prompt.trim()) ||
+      `Ejecuta tu habilidad entrenada "${customSkillName}" y entrega un reporte técnico detallado.`;
+
+    const multiTurnContents =
+      Array.isArray(history) && history.length > 0
+        ? buildGeminiChatContents(history, userPromptText)
+        : userPromptText;
 
     if (apiKey && apiKey.trim() !== '' && !apiKey.includes('YOUR_API_KEY') && !apiKey.includes('placeholder')) {
       try {
         const { GoogleGenAI } = await import('@google/genai');
-        const ai = new GoogleGenAI({ apiKey });
-        const systemInstruction = `Eres ${agentName}, un agente de IA especializado en "${role}" con la habilidad entrenada "${customSkillName}".
-Instrucciones de entrenamiento del usuario:
-${trainedInstructions || 'Responder con precisión técnica.'}
-
-Responde directamente aplicando tu habilidad entrenada en idioma español.`;
+        const ai = new GoogleGenAI({
+          apiKey,
+          httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
+        });
 
         const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: prompt || `Ejecuta tu habilidad entrenada "${customSkillName}" y entrega un reporte técnico detallado.`,
+          model: resolvedModelId,
+          contents: multiTurnContents,
           config: {
             systemInstruction,
           },
@@ -122,7 +159,8 @@ Responde directamente aplicando tu habilidad entrenada en idioma español.`;
           output: textOutput,
           agentName,
           customSkillName,
-          source: 'gemini-2.5-flash',
+          baseUrl: baseUrl || undefined,
+          source: resolvedModelId,
         });
       } catch (geminiError: any) {
         // Smoothly fall through to nexus-skill-engine fallback without logging noisy API key error payloads
@@ -130,14 +168,26 @@ Responde directamente aplicando tu habilidad entrenada en idioma español.`;
       }
     }
 
-    // Dynamic Skill Response Generator (for offline / fallback)
+    // Dynamic Contextual Response Generator (when running offline/local without Gemini API key)
     const timestamp = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const urlContextLine = baseUrl ? `\nURL Base vinculada: ${baseUrl}` : '';
+    const extraCtxLine = sessionContext ? `\nContexto adicional activo: ${sessionContext}` : '';
+    const priorUserTurns = Array.isArray(history)
+      ? history
+          .filter((m: any) => m && m.sender === 'user' && typeof m.text === 'string' && m.text.trim())
+          .map((m: any) => m.text.trim())
+      : [];
+    const memoryLine =
+      priorUserTurns.length > 0
+        ? `\nMemoria de conversación (${priorUserTurns.length} mensaje(s) previo(s)): "${priorUserTurns[priorUserTurns.length - 1]}"`
+        : '';
+
     let fallbackText = '';
 
     if (isAutonomousRun) {
-      fallbackText = `[24/7 AUTÓNOMO - ${timestamp}] Agente ${agentName} ejecutó exitosamente la habilidad "${customSkillName}". Auditoría continua completada. Criterio de entrenamiento aplicado: "${(trainedInstructions || '').slice(0, 80)}...". Sistema operativo sin anomalías.`;
+      fallbackText = `[24/7 AUTÓNOMO - ${timestamp}] Agente ${agentName} ejecutó exitosamente la habilidad "${customSkillName}".${urlContextLine} Criterio aplicado: "${(trainedInstructions || '').slice(0, 80)}...".`;
     } else {
-      fallbackText = `[Agente ${agentName}]: Aplicando mi habilidad entrenada "${customSkillName}" a tu solicitud: "${prompt}".\n\nRegla de entrenamiento activa: ${trainedInstructions}\n\nResultado: Tarea procesada y validada según los estándares de Nexus Web Studio.`;
+      fallbackText = `[Agente ${agentName}]: Aplicando instrucciones configuradas para tu solicitud: "${userPromptText}".${urlContextLine}${extraCtxLine}${memoryLine}\n\nSistema de Prompts activo: ${trainedInstructions}\n\nResultado: Respuesta procesada y lista para operar sobre el entorno web configurado.`;
     }
 
     return res.status(200).json({
@@ -145,6 +195,7 @@ Responde directamente aplicando tu habilidad entrenada en idioma español.`;
       output: fallbackText,
       agentName,
       customSkillName,
+      baseUrl: baseUrl || undefined,
       source: 'nexus-skill-engine',
     });
   } catch (err: any) {

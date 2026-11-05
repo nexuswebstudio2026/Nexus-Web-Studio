@@ -32,6 +32,7 @@ import {
   Check,
   AlertTriangle
 } from 'lucide-react';
+import { normalizeAgentBaseUrl, derivePageTitleFromUrl } from '../utils/agentConfig';
 
 export interface WebBrowserViewProps {
   initialUrl?: string;
@@ -57,18 +58,19 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
   onClose,
 }) => {
   // Tabs State
+  const resolvedInitialUrl = normalizeAgentBaseUrl(initialUrl) || 'https://web.whatsapp.com';
   const [tabs, setTabs] = useState<BrowserTab[]>([
     {
       id: 'tab_1',
-      title: 'WhatsApp Web',
-      url: initialUrl,
+      title: derivePageTitleFromUrl(resolvedInitialUrl),
+      url: resolvedInitialUrl,
     },
   ]);
   const [activeTabId, setActiveTabId] = useState<string>('tab_1');
 
   // Active Tab Derived Properties
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
-  const [urlInput, setUrlInput] = useState<string>(activeTab ? activeTab.url : initialUrl);
+  const [urlInput, setUrlInput] = useState<string>(activeTab ? activeTab.url : resolvedInitialUrl);
   const [renderMode, setRenderMode] = useState<'emulator' | 'iframe'>('emulator');
   const [iframeError, setIframeError] = useState<boolean>(false);
   const [copiedUrl, setCopiedUrl] = useState<boolean>(false);
@@ -127,6 +129,47 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
     },
   ]);
 
+  const isKnownEmulatorDomain = (url: string): boolean =>
+    url.includes('whatsapp.com') ||
+    url.includes('github.com') ||
+    url.includes('facebook.com') ||
+    url.includes('linkedin.com') ||
+    url.includes('x.com') ||
+    url.includes('twitter.com') ||
+    url.includes('instagram.com');
+
+  // Helper: Normalize URL
+  const normalizeUrl = (input: string): string => {
+    const clean = normalizeAgentBaseUrl(input);
+    return clean || 'https://google.com';
+  };
+
+  // Navigate to URL
+  const handleNavigate = (targetUrl: string, recordHistory: boolean = true) => {
+    const formatted = normalizeUrl(targetUrl);
+    setUrlInput(formatted);
+
+    // Update active tab
+    const pageTitle = derivePageTitleFromUrl(formatted);
+
+    setTabs((prev) =>
+      prev.map((t) => (t.id === activeTabId ? { ...t, url: formatted, title: pageTitle } : t))
+    );
+
+    if (recordHistory) {
+      setHistoryStack((prev) => {
+        if (prev[historyIndex] === formatted) return prev;
+        const newStack = prev.slice(0, historyIndex + 1);
+        newStack.push(formatted);
+        setHistoryIndex(newStack.length - 1);
+        return newStack;
+      });
+    }
+
+    setRenderMode(isKnownEmulatorDomain(formatted) ? 'emulator' : 'iframe');
+    setIframeError(false);
+  };
+
   // Keep input bar in sync with active tab URL
   useEffect(() => {
     if (activeTab) {
@@ -135,42 +178,23 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
     }
   }, [activeTabId, activeTab]);
 
-  // Helper: Normalize URL
-  const normalizeUrl = (input: string): string => {
-    let clean = input.trim();
-    if (!clean) return 'https://google.com';
-    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
-      clean = `https://${clean}`;
+  // Sync external initialUrl prop changes into active browser tab
+  useEffect(() => {
+    if (initialUrl && initialUrl.trim()) {
+      const normalized = normalizeUrl(initialUrl);
+      const nextTitle = derivePageTitleFromUrl(normalized);
+      if (activeTab && activeTab.url !== normalized) {
+        handleNavigate(normalized, true);
+      } else {
+        setTabs((prev) =>
+          prev.map((t) =>
+            t.id === activeTabId && t.title !== nextTitle ? { ...t, title: nextTitle } : t
+          )
+        );
+        setRenderMode(isKnownEmulatorDomain(normalized) ? 'emulator' : 'iframe');
+      }
     }
-    return clean;
-  };
-
-  // Navigate to URL
-  const handleNavigate = (targetUrl: string) => {
-    const formatted = normalizeUrl(targetUrl);
-    setUrlInput(formatted);
-
-    // Update active tab
-    let pageTitle = 'Navegador Web';
-    if (formatted.includes('whatsapp.com')) pageTitle = 'WhatsApp Web';
-    else if (formatted.includes('github.com')) pageTitle = 'GitHub Repositorios';
-    else if (formatted.includes('facebook.com')) pageTitle = 'Facebook';
-    else if (formatted.includes('linkedin.com')) pageTitle = 'LinkedIn';
-    else if (formatted.includes('x.com') || formatted.includes('twitter.com')) pageTitle = 'X / Twitter';
-    else if (formatted.includes('instagram.com')) pageTitle = 'Instagram';
-    else if (formatted.includes('google.com')) pageTitle = 'Google Search';
-
-    setTabs((prev) =>
-      prev.map((t) => (t.id === activeTabId ? { ...t, url: formatted, title: pageTitle } : t))
-    );
-
-    // Update history
-    const newStack = historyStack.slice(0, historyIndex + 1);
-    newStack.push(formatted);
-    setHistoryStack(newStack);
-    setHistoryIndex(newStack.length - 1);
-    setIframeError(false);
-  };
+  }, [initialUrl]);
 
   // Tab Management
   const handleCreateNewTab = () => {
@@ -505,31 +529,62 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
         
         {renderMode === 'iframe' ? (
           /* DIRECT IFRAME MODE */
-          <div className="w-full h-full relative">
-            <iframe
-              src={activeTab.url}
-              title={activeTab.title}
-              className="w-full h-full border-0 bg-white"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads"
-              onError={() => setIframeError(true)}
-            />
-
-            {iframeError && (
-              <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center space-y-4">
-                <AlertTriangle className="w-12 h-12 text-amber-400 animate-pulse" />
-                <h3 className="text-base font-bold text-white">Protección X-Frame-Options Detectada</h3>
-                <p className="text-xs text-slate-300 max-w-md leading-relaxed">
-                  El sitio web <code className="text-cyan-400 font-mono">{activeTab.url}</code> restringe la incrustación en iFrames directos por políticas de seguridad CSP de dominio externo.
-                </p>
-                <button
-                  onClick={() => setRenderMode('emulator')}
-                  className="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-purple-600 text-white font-bold text-xs rounded-xl shadow-lg flex items-center gap-2 cursor-pointer"
-                >
-                  <Sparkles className="w-4 h-4 text-amber-300" />
-                  <span>Cambiar a Emulador Visual IA Interactivo</span>
-                </button>
+          <div className="w-full h-full relative flex flex-col">
+            <div className="bg-slate-900/95 border-b border-slate-800 px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-[11px] shrink-0">
+              <div className="flex items-center gap-2 text-slate-300 font-mono truncate">
+                <Globe className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span className="truncate">
+                  Navegando en: <strong className="text-white">{activeTab.url}</strong>
+                </span>
               </div>
-            )}
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setRenderMode('emulator')}
+                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-300 font-semibold rounded-lg border border-slate-700 transition-colors cursor-pointer"
+                >
+                  Cambiar a Inspector IA
+                </button>
+                <a
+                  href={activeTab.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1 bg-cyan-950 hover:bg-cyan-900 text-cyan-300 font-semibold rounded-lg border border-cyan-800 flex items-center gap-1 transition-colors"
+                >
+                  <span>Abrir externo</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
+
+            <div className="flex-1 relative">
+              <iframe
+                key={activeTab.url}
+                src={activeTab.url}
+                title={activeTab.title}
+                className="w-full h-full border-0 bg-white"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads"
+                onError={() => setIframeError(true)}
+              />
+
+              {iframeError && (
+                <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center space-y-4">
+                  <AlertTriangle className="w-12 h-12 text-amber-400 animate-pulse" />
+                  <h3 className="text-base font-bold text-white">Protección X-Frame-Options Detectada</h3>
+                  <p className="text-xs text-slate-300 max-w-md leading-relaxed">
+                    El sitio web <code className="text-cyan-400 font-mono">{activeTab.url}</code> restringe la incrustación en iFrames directos por políticas de seguridad CSP de dominio externo.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setRenderMode('emulator')}
+                    className="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-purple-600 text-white font-bold text-xs rounded-xl shadow-lg flex items-center gap-2 cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4 text-amber-300" />
+                    <span>Cambiar a Emulador Visual IA Interactivo</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           /* AI EMULATOR INTERACTIVE MODE */
@@ -767,8 +822,19 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
                   <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 text-xs text-slate-300 space-y-2 text-left font-mono">
                     <span className="text-emerald-400 font-bold block">🟢 Estado de Inspección IA:</span>
                     <p>Dominio normalizado: {activeTab.url}</p>
-                    <p>Protocolo SSL: Seguro (HTTPS)</p>
+                    <p>Protocolo SSL: {activeTab.url.startsWith('https://') ? 'Seguro (HTTPS)' : 'HTTP Local'}</p>
                     <p>Agente activo: {agentName} ({agentRole})</p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setRenderMode('iframe')}
+                      className="px-4 py-2.5 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-lg flex items-center gap-2 cursor-pointer"
+                    >
+                      <Monitor className="w-4 h-4" />
+                      <span>Cargar Página Web en Visor iFrame</span>
+                    </button>
                   </div>
                 </div>
               )}

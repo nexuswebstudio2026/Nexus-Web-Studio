@@ -3,6 +3,7 @@ import { HeaderBar } from './components/HeaderBar';
 import { SidebarNav } from './components/SidebarNav';
 import { AuthModal } from './components/AuthModal';
 import { RolePermissionModal } from './components/RolePermissionModal';
+import { UserProfileModal } from './components/UserProfileModal';
 import { PromptGeneratorTab } from './components/PromptGeneratorTab';
 import { PublicLandingPage } from './components/PublicLandingPage';
 import { GlobalSearchBar } from './components/GlobalSearchBar';
@@ -106,6 +107,8 @@ export default function App() {
   // Modals state
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
+  const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState(false);
+  const [targetProfileUser, setTargetProfileUser] = useState<UserAccount | null>(null);
 
   // Synchronize URL routing on mount & popstate
   React.useEffect(() => {
@@ -279,7 +282,8 @@ export default function App() {
 
   // Active Module View inside management system
   const [activeModuleOverride, setActiveModuleOverride] = useState<RoleId | null>(null);
-  const activeModuleRole: RoleId = activeModuleOverride || currentUser.role;
+  const rawRole = activeModuleOverride || currentUser.role;
+  const activeModuleRole: RoleId = ['admin', 'ai_agents', 'inbox', 'firebase_crud', 'settings'].includes(rawRole) ? rawRole : 'admin';
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Sidebar position offset & alignment states
@@ -610,11 +614,14 @@ export default function App() {
               {/* Top Workspace Header Bar */}
               <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 shadow-xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
                 
-                {/* Active User Context (Clickable -> Firebase CRUD) */}
+                {/* Active User Context (Clickable -> Perfil de Usuario) */}
                 <div
-                  onClick={() => setActiveModuleOverride('firebase_crud')}
+                  onClick={() => {
+                    setTargetProfileUser(currentUser);
+                    setIsUserProfileModalOpen(true);
+                  }}
                   className="flex items-center gap-3 shrink-0 cursor-pointer group p-1.5 rounded-2xl hover:bg-slate-800/60 transition-colors border border-transparent hover:border-amber-500/40"
-                  title="Haz clic en tu nombre de perfil para gestionar datos en la base de datos de Firebase"
+                  title="Haz clic para ver y editar tu perfil de usuario, teléfono y rol"
                 >
                   <img
                     src={currentUser.avatar}
@@ -682,6 +689,10 @@ export default function App() {
                   projects={projects}
                   onOpenPermissions={() => setIsPermissionModalOpen(true)}
                   onUpdateUserRole={handleUpdateUserRole}
+                  onOpenUserProfile={(usr) => {
+                    setTargetProfileUser(usr);
+                    setIsUserProfileModalOpen(true);
+                  }}
                   onAddProject={handleAddProject}
                   onDeleteProject={handleDeleteProject}
                 />
@@ -781,6 +792,25 @@ export default function App() {
         onUpdateUserPermissions={handleUpdateUserPermissions}
         onUpdateUserRole={handleUpdateUserRole}
         onAddUser={handleAddUser}
+      />
+
+      {/* User Profile & Contact Details CRUD Modal */}
+      <UserProfileModal
+        isOpen={isUserProfileModalOpen}
+        onClose={() => setIsUserProfileModalOpen(false)}
+        targetUser={targetProfileUser || currentUser}
+        currentUser={currentUser}
+        allUsers={users}
+        onUpdateUser={(updated) => {
+          setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+        }}
+        onDeleteUser={(deletedId) => {
+          setUsers((prev) => prev.filter((u) => u.id !== deletedId));
+        }}
+        onCreateUser={(newUser) => {
+          handleAddUser(newUser);
+        }}
+        onOpenPermissions={() => setIsPermissionModalOpen(true)}
       />
 
     </div>

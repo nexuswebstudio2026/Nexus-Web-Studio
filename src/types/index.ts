@@ -54,6 +54,7 @@ export interface UserAccount {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   role: RoleId;
   avatar: string;
   jobTitle: string;

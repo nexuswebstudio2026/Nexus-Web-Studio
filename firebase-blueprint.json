@@ -93,6 +93,7 @@
         "description": { "type": "string" },
         "customSkillName": { "type": "string" },
         "trainedInstructions": { "type": "string" },
+        "baseUrl": { "type": "string" },
         "model": { "type": "string" },
         "icon": { "type": "string" },
         "status": { "type": "string", "enum": ["active", "idle", "busy", "autonomous"] },
@@ -100,9 +101,11 @@
         "executionInterval": { "type": "number" },
         "isAutonomous247": { "type": "boolean" },
         "lastRunTimestamp": { "type": "string" },
-        "createdAt": { "type": "string" }
+        "messagesCount": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
       },
-      "required": ["name", "role", "customSkillName", "trainedInstructions"]
+      "required": ["name", "role", "customSkillName", "trainedInstructions", "baseUrl"]
     },
     "AiAgentLog": {
       "title": "AiAgentLog",
@@ -152,6 +155,29 @@
         "createdAt": { "type": "string" }
       },
       "required": ["name", "email", "message", "status", "createdAt"]
+    },
+    "AiAgentConversation": {
+      "title": "AiAgentConversation",
+      "description": "Persisted multi-turn chat conversation session with an AI agent including preserved context settings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agentId": { "type": "string" },
+        "agentName": { "type": "string" },
+        "agentRole": { "type": "string" },
+        "title": { "type": "string" },
+        "messages": { "type": "array", "items": { "type": "object" } },
+        "sessionContext": { "type": "string" },
+        "includeBaseUrlContext": { "type": "boolean" },
+        "includeCapabilitiesContext": { "type": "boolean" },
+        "baseUrl": { "type": "string" },
+        "trainedInstructionsSnapshot": { "type": "string" },
+        "dateKey": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "messageCount": { "type": "number" }
+      },
+      "required": ["id", "agentId", "agentName", "title", "messages", "dateKey", "updatedAt"]
     }
   },
   "firestore": {
@@ -190,6 +216,10 @@
     "/contact_messages/{messageId}": {
       "schema": { "$ref": "#/entities/ContactMessage" },
       "description": "Contact form submission inbox messages collection"
+    },
+    "/ai_agent_conversations/{conversationId}": {
+      "schema": { "$ref": "#/entities/AiAgentConversation" },
+      "description": "AI Agent chat conversation history sessions with preserved context"
     }
   }
 }
