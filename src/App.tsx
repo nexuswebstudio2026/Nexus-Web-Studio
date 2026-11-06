@@ -599,6 +599,11 @@ export default function App() {
                 setPublicSection('inicio');
                 navigateRoute('agency_site', 'inicio');
               }}
+              onCloseNav={() => {
+                setCurrentView('agency_site');
+                setPublicSection('inicio');
+                navigateRoute('agency_site', 'inicio');
+              }}
               onOpenFirebaseCrud={() => setActiveModuleOverride('firebase_crud')}
               verticalOffset={sidebarVerticalOffset}
               onAdjustOffset={handleAdjustSidebarOffset}
@@ -612,31 +617,33 @@ export default function App() {
             <div className="flex-1 min-w-0 w-full space-y-6">
               
               {/* Top Workspace Header Bar */}
-              <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 shadow-xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+              <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 shadow-xl">
                 
-                {/* Active User Context (Clickable -> Perfil de Usuario) */}
+                {/* Active User Context & Integrated Search */}
                 <div
                   onClick={() => {
                     setTargetProfileUser(currentUser);
                     setIsUserProfileModalOpen(true);
                   }}
-                  className="flex items-center gap-3 shrink-0 cursor-pointer group p-1.5 rounded-2xl hover:bg-slate-800/60 transition-colors border border-transparent hover:border-amber-500/40"
+                  className="flex items-start gap-3 cursor-pointer group p-1 rounded-2xl hover:bg-slate-800/40 transition-colors border border-transparent hover:border-amber-500/30"
                   title="Haz clic para ver y editar tu perfil de usuario, teléfono y rol"
                 >
                   <img
                     src={currentUser.avatar}
                     alt={currentUser.name}
-                    className="w-10 h-10 rounded-xl object-cover border border-purple-500/40 shrink-0 group-hover:border-amber-400 transition-colors"
+                    className="w-10 h-10 rounded-xl object-cover border border-purple-500/40 shrink-0 group-hover:border-amber-400 transition-colors mt-0.5"
                   />
-                  <div>
-                    <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-bold text-white group-hover:text-amber-300 transition-colors flex items-center gap-1.5">
                         {currentUser.name}
                       </span>
                       <span className="text-xs text-slate-400 font-mono">({currentUser.jobTitle})</span>
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] text-purple-300 font-mono bg-purple-950 px-2 py-0.2 rounded border border-purple-800">
+
+                    {/* Debajo de superadministrador: Rol, Ver RBAC, Cerrar Sesión y a la derecha el buscador (Lupa + Ctrl+K) */}
+                    <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                      <span className="text-[10px] text-purple-300 font-mono bg-purple-950 px-2 py-0.5 rounded border border-purple-800 shrink-0">
                         Rol: {SYSTEM_ROLES.find((r) => r.id === currentUser.role)?.name || 'Usuario'}
                       </span>
                       <button
@@ -644,7 +651,7 @@ export default function App() {
                           e.stopPropagation();
                           setIsPermissionModalOpen(true);
                         }}
-                        className="text-[10px] text-slate-400 hover:text-purple-300 underline font-medium flex items-center gap-1"
+                        className="text-[10px] text-slate-400 hover:text-purple-300 underline font-medium flex items-center gap-1 shrink-0"
                       >
                         <ShieldCheck className="w-3 h-3 text-purple-400" />
                         <span>Ver RBAC ({Object.values(currentUser.permissions).filter(Boolean).length} activas)</span>
@@ -654,32 +661,35 @@ export default function App() {
                           e.stopPropagation();
                           handleLogout();
                         }}
-                        className="text-[10px] text-rose-300 hover:text-rose-100 bg-rose-950/60 hover:bg-rose-900 px-2 py-0.5 rounded border border-rose-800/60 transition-colors flex items-center gap-1 ml-1"
+                        className="text-[10px] text-rose-300 hover:text-rose-100 bg-rose-950/60 hover:bg-rose-900 px-2 py-0.5 rounded border border-rose-800/60 transition-colors flex items-center gap-1 shrink-0"
                         title="Cerrar sesión"
                       >
                         <LogOut className="w-3 h-3 text-rose-400" />
                         <span>Cerrar Sesión</span>
                       </button>
+
+                      {/* Buscador Lupa + Ctrl + K a la derecha del botón Cerrar Sesión */}
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 min-w-[240px] max-w-md ml-0 sm:ml-2"
+                      >
+                        <GlobalSearchBar
+                          projects={projects}
+                          tickets={tickets}
+                          tasks={tasks}
+                          invoices={invoices}
+                          onSelectModule={(roleId) => setActiveModuleOverride(roleId)}
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-
-                {/* Global Search Bar */}
-                <div className="flex-1 max-w-md w-full">
-                  <GlobalSearchBar
-                    projects={projects}
-                    tickets={tickets}
-                    tasks={tasks}
-                    invoices={invoices}
-                    onSelectModule={(roleId) => setActiveModuleOverride(roleId)}
-                  />
                 </div>
 
               </div>
 
               {/* Render Selected Module Viewport */}
               {activeModuleRole === 'firebase_crud' && (
-                <FirebaseCrudModule currentUser={currentUser} />
+                <SettingsModule currentUser={currentUser} initialTab="database" />
               )}
 
               {activeModuleRole === 'admin' && (

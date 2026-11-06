@@ -14,13 +14,15 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { UserAccount } from '../../types';
+import { FirebaseCrudModule } from './FirebaseCrudModule';
 
 interface SettingsModuleProps {
   currentUser: UserAccount;
+  initialTab?: 'agency' | 'database' | 'security' | 'smtp';
 }
 
-export const SettingsModule: React.FC<SettingsModuleProps> = ({ currentUser }) => {
-  const [activeTab, setActiveTab] = useState<'agency' | 'database' | 'security' | 'smtp'>('agency');
+export const SettingsModule: React.FC<SettingsModuleProps> = ({ currentUser, initialTab = 'agency' }) => {
+  const [activeTab, setActiveTab] = useState<'agency' | 'database' | 'security' | 'smtp'>(initialTab);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   // Agency Form State
@@ -107,10 +109,10 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({ currentUser }) =
       </div>
 
       {/* Form Area */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl">
-        <form onSubmit={handleSaveSettings} className="space-y-6">
-          {/* TAB 1: AGENCY */}
-          {activeTab === 'agency' && (
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-6">
+        {/* TAB 1: AGENCY */}
+        {activeTab === 'agency' && (
+          <form onSubmit={handleSaveSettings} className="space-y-6">
             <div className="space-y-4">
               <h2 className="text-sm font-bold text-white flex items-center gap-2 pb-2 border-b border-slate-800">
                 <Building2 className="w-4 h-4 text-purple-400" />
@@ -159,11 +161,23 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({ currentUser }) =
                 </div>
               </div>
             </div>
-          )}
 
-          {/* TAB 2: DATABASE */}
-          {activeTab === 'database' && (
-            <div className="space-y-4">
+            <div className="pt-4 border-t border-slate-800 flex justify-end">
+              <button
+                type="submit"
+                className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/30 flex items-center gap-2 transition-all"
+              >
+                <Save className="w-4 h-4" />
+                <span>Guardar Datos de Agencia</span>
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* TAB 2: DATABASE (Config + Complete Firebase CRUD Module) */}
+        {activeTab === 'database' && (
+          <div className="space-y-8">
+            <form onSubmit={handleSaveSettings} className="space-y-4">
               <h2 className="text-sm font-bold text-white flex items-center gap-2 pb-2 border-b border-slate-800">
                 <Database className="w-4 h-4 text-cyan-400" />
                 <span>Configuración de Google Cloud Firestore & PostgreSQL</span>
@@ -208,11 +222,28 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({ currentUser }) =
                   </div>
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* TAB 3: SECURITY */}
-          {activeTab === 'security' && (
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-600/30 flex items-center gap-2 transition-all"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Guardar Conexión Cloud</span>
+                </button>
+              </div>
+            </form>
+
+            {/* Embedded Full Firebase CRUD Module */}
+            <div className="pt-6 border-t border-slate-800">
+              <FirebaseCrudModule currentUser={currentUser} />
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: SECURITY */}
+        {activeTab === 'security' && (
+          <form onSubmit={handleSaveSettings} className="space-y-6">
             <div className="space-y-4">
               <h2 className="text-sm font-bold text-white flex items-center gap-2 pb-2 border-b border-slate-800">
                 <ShieldCheck className="w-4 h-4 text-purple-400" />
@@ -245,10 +276,22 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({ currentUser }) =
                 </div>
               </div>
             </div>
-          )}
 
-          {/* TAB 4: SMTP */}
-          {activeTab === 'smtp' && (
+            <div className="pt-4 border-t border-slate-800 flex justify-end">
+              <button
+                type="submit"
+                className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/30 flex items-center gap-2 transition-all"
+              >
+                <Save className="w-4 h-4" />
+                <span>Guardar Políticas de Seguridad</span>
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* TAB 4: SMTP */}
+        {activeTab === 'smtp' && (
+          <form onSubmit={handleSaveSettings} className="space-y-6">
             <div className="space-y-4">
               <h2 className="text-sm font-bold text-white flex items-center gap-2 pb-2 border-b border-slate-800">
                 <Mail className="w-4 h-4 text-emerald-400" />
@@ -287,18 +330,18 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({ currentUser }) =
                 </div>
               </div>
             </div>
-          )}
 
-          <div className="pt-4 border-t border-slate-800 flex justify-end">
-            <button
-              type="submit"
-              className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/30 flex items-center gap-2 transition-all"
-            >
-              <Save className="w-4 h-4" />
-              <span>Guardar Configuración del Sistema</span>
-            </button>
-          </div>
-        </form>
+            <div className="pt-4 border-t border-slate-800 flex justify-end">
+              <button
+                type="submit"
+                className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-600/30 flex items-center gap-2 transition-all"
+              >
+                <Save className="w-4 h-4" />
+                <span>Guardar Servidor SMTP</span>
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );

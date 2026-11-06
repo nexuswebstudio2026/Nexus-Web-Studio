@@ -21,6 +21,7 @@ import {
   ArrowDown,
   ArrowLeftRight,
   MoveVertical,
+  X,
 } from 'lucide-react';
 import { UserAccount, RoleId } from '../types';
 import { SYSTEM_ROLES } from '../data/mockData';
@@ -36,6 +37,7 @@ interface SidebarNavProps {
   onOpenPermissionMatrix: () => void;
   onLogout: () => void;
   onGoToLanding?: () => void;
+  onCloseNav?: () => void;
   onOpenFirebaseCrud?: () => void;
   verticalOffset: number;
   onAdjustOffset: (delta: number) => void;
@@ -52,6 +54,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
   onOpenPermissionMatrix,
   onLogout,
   onGoToLanding,
+  onCloseNav,
   onOpenFirebaseCrud,
   verticalOffset,
   onAdjustOffset,
@@ -81,6 +84,14 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
     };
   }, []);
 
+  const handleCloseNavigation = () => {
+    if (onCloseNav) {
+      onCloseNav();
+    } else if (onGoToLanding) {
+      onGoToLanding();
+    }
+  };
+
   const navItems: { id: RoleId; label: string; icon: any; badge?: string }[] = [
     { id: 'admin', label: 'Administración', icon: Building2 },
     { id: 'ai_agents', label: 'Agentes de IA', icon: Bot, badge: 'IA' },
@@ -90,7 +101,6 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
       icon: Inbox,
       badge: unreadInboxCount > 0 ? `${unreadInboxCount} N` : undefined,
     },
-    { id: 'firebase_crud', label: 'Base de Datos (CRUD)', icon: Database, badge: 'DB' },
     { id: 'settings', label: 'Configuración', icon: Settings },
   ];
 
@@ -102,50 +112,35 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
       }`}
     >
       {/* Top Header / Branding */}
-      <div className="p-4 space-y-3">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
-          {!isCollapsed && (
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl overflow-hidden border border-cyan-500/40 bg-white p-0.5 shrink-0 shadow-md">
-                <img src={OFFICIAL_NEXUS_LOGO} alt="Nexus Logo" className="w-full h-full object-contain rounded-lg" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs font-black tracking-wider uppercase text-white">NEXUS PANEL</span>
-                <span className="text-[10px] text-cyan-400 font-semibold">Sistema de Gestión</span>
-              </div>
-            </div>
-          )}
-
-          {isCollapsed && (
-            <div className="w-8 h-8 rounded-xl overflow-hidden border border-cyan-500/40 bg-white p-0.5 mx-auto shadow-md">
-              <img src={OFFICIAL_NEXUS_LOGO} alt="Nexus Logo" className="w-full h-full object-contain rounded-lg" />
-            </div>
-          )}
-
-          <div className="flex items-center gap-1">
-            {/* Position controls toggle */}
-            <button
-              onClick={() => setShowPosControls(!showPosControls)}
-              className={`p-1.5 rounded-lg border transition-colors ${
-                showPosControls
-                  ? 'bg-amber-500 text-slate-950 border-amber-400'
-                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800'
-              }`}
-              title="Ajustar posición del sidebar (Subir/Bajar/Mover Lado)"
-            >
-              <MoveVertical className="w-3.5 h-3.5" />
-            </button>
-
-            {/* Collapse toggle */}
+      <div className="p-3.5 space-y-3">
+        {!isCollapsed ? (
+          <div className="flex items-center justify-center pb-3 border-b border-slate-800/80">
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
-              className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-              title={isCollapsed ? 'Expandir barra lateral' : 'Colapsar barra lateral'}
+              className="flex items-center gap-3 cursor-pointer group text-left focus:outline-none w-full p-1 rounded-xl hover:bg-slate-900/60 transition-colors"
+              title="Clic en el logo para colapsar/expandir el menú"
             >
-              {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+              <div className="w-9 h-9 rounded-xl overflow-hidden border border-cyan-500/50 bg-white p-0.5 shrink-0 shadow-lg shadow-cyan-500/20 group-hover:scale-105 group-hover:border-cyan-300 transition-all">
+                <img src={OFFICIAL_NEXUS_LOGO} alt="Nexus Logo" className="w-full h-full object-contain rounded-lg" />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-xs font-black tracking-wider uppercase text-white group-hover:text-cyan-300 transition-colors truncate">NEXUS PANEL</span>
+                <span className="text-[10px] text-cyan-400 font-semibold truncate">Sistema de Gestión</span>
+              </div>
             </button>
           </div>
-        </div>
+        ) : (
+          <div className="flex items-center justify-center pb-3 border-b border-slate-800/80">
+            {/* Logo Centered in Collapsed Mode */}
+            <button
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="w-10 h-10 rounded-xl overflow-hidden border-2 border-cyan-400 bg-white p-0.5 shadow-lg shadow-cyan-500/30 cursor-pointer hover:scale-110 hover:border-cyan-300 transition-all focus:outline-none"
+              title="Clic en el logo para expandir el menú"
+            >
+              <img src={OFFICIAL_NEXUS_LOGO} alt="Nexus Logo" className="w-full h-full object-contain rounded-lg" />
+            </button>
+          </div>
+        )}
 
         {/* Position adjustment toolbar popover */}
         {showPosControls && (
@@ -193,7 +188,13 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveModuleRole(item.id)}
+                onClick={() => {
+                  if (item.id === ('website' as RoleId)) {
+                    handleCloseNavigation();
+                  } else {
+                    setActiveModuleRole(item.id);
+                  }
+                }}
                 title={isCollapsed ? item.label : undefined}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-medium text-xs transition-all relative ${
                   isActive
@@ -233,27 +234,27 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
       <div className="p-3 border-t border-slate-800/80 bg-slate-950/90 rounded-b-3xl space-y-2">
         {!isCollapsed ? (
           <div className="space-y-2">
-            {/* Clickable Profile Card -> CRUD Firebase */}
+            {/* Clickable Profile Card -> Configuración & Base de Datos */}
             <div
               onClick={() => {
                 if (onOpenFirebaseCrud) {
                   onOpenFirebaseCrud();
                 } else {
-                  setActiveModuleRole('firebase_crud');
+                  setActiveModuleRole('settings');
                 }
               }}
-              className="flex items-center gap-2.5 p-2 bg-slate-900/90 hover:bg-slate-850 border border-slate-800 hover:border-amber-500/60 rounded-xl cursor-pointer transition-all group shadow-md"
-              title="Haz clic en tu perfil para abrir el Gestor CRUD de Firebase con todos tus datos"
+              className="flex items-center gap-2.5 p-2 bg-slate-900/90 hover:bg-slate-850 border border-slate-800 hover:border-purple-500/60 rounded-xl cursor-pointer transition-all group shadow-md"
+              title="Haz clic en tu perfil para abrir Configuración y Base de Datos"
             >
               <img
                 src={currentUser.avatar}
                 alt={currentUser.name}
-                className="w-8 h-8 rounded-lg object-cover border border-purple-500/40 shrink-0 group-hover:border-amber-400 transition-colors"
+                className="w-8 h-8 rounded-lg object-cover border border-purple-500/40 shrink-0 group-hover:border-purple-400 transition-colors"
               />
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-white group-hover:text-amber-300 truncate flex items-center justify-between">
+                <p className="text-xs font-bold text-white group-hover:text-purple-300 truncate flex items-center justify-between">
                   <span className="truncate">{currentUser.name}</span>
-                  <Database className="w-3 h-3 text-amber-400 shrink-0 ml-1 opacity-80 group-hover:opacity-100" />
+                  <Settings className="w-3 h-3 text-purple-400 shrink-0 ml-1 opacity-80 group-hover:opacity-100" />
                 </p>
                 <p className="text-[10px] text-purple-300 font-mono truncate">
                   Rol: {SYSTEM_ROLES.find((r) => r.id === currentUser.role)?.name || 'Usuario'}
@@ -296,12 +297,12 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
             <button
               onClick={() => {
                 if (onOpenFirebaseCrud) onOpenFirebaseCrud();
-                else setActiveModuleRole('firebase_crud');
+                else setActiveModuleRole('settings');
               }}
-              className="w-full p-2 bg-slate-900 hover:bg-amber-950 border border-slate-800 hover:border-amber-500 text-amber-400 rounded-xl flex items-center justify-center transition-colors"
-              title="Abrir CRUD Firebase (Clic en perfil)"
+              className="w-full p-2 bg-slate-900 hover:bg-purple-950 border border-slate-800 hover:border-purple-500 text-purple-400 rounded-xl flex items-center justify-center transition-colors"
+              title="Abrir Configuración y Base de Datos (Clic en perfil)"
             >
-              <Database className="w-4 h-4" />
+              <Settings className="w-4 h-4" />
             </button>
 
             <button
