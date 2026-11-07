@@ -45,6 +45,7 @@ import {
   Building2,
   BarChart2,
   History,
+  Save,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -108,6 +109,8 @@ export interface AiAgent {
   customSkillName: string;
   trainedInstructions: string;
   baseUrl?: string;
+  isNavigationAgent?: boolean;
+  navigationStartUrl?: string;
   model: string;
   icon: string;
   status: 'active' | 'idle' | 'busy' | 'autonomous';
@@ -156,6 +159,8 @@ export const DEFAULT_INITIAL_AGENTS: AiAgent[] = [
     trainedInstructions:
       'Liderar la toma de decisiones directivas de Nexus Web Studio, evaluar riesgos globales, validar fusiones o alianzas corporativas y supervisar el cumplimiento de la visión empresarial.',
     baseUrl: 'https://nexuswebstudio.com/junta-directiva',
+    isNavigationAgent: true,
+    navigationStartUrl: 'https://nexuswebstudio.com/junta-directiva',
     model: 'Gemini 3.8 Flash',
     icon: 'Crown',
     status: 'autonomous',
@@ -172,6 +177,8 @@ export const DEFAULT_INITIAL_AGENTS: AiAgent[] = [
     trainedInstructions:
       'Auditar estados financieros, controlar presupuestos operativos y de desarrollo, proyectar flujo de caja y maximizar la rentabilidad de la empresa.',
     baseUrl: 'https://nexuswebstudio.com/finanzas',
+    isNavigationAgent: true,
+    navigationStartUrl: 'https://nexuswebstudio.com/finanzas',
     model: 'Gemini 3.8 Flash',
     icon: 'DollarSign',
     status: 'autonomous',
@@ -188,6 +195,8 @@ export const DEFAULT_INITIAL_AGENTS: AiAgent[] = [
     trainedInstructions:
       'Registrar minutas detalladas de sesiones de junta directiva, organizar el calendario de acuerdos, formalizar actas institucionales y garantizar compliance.',
     baseUrl: 'https://nexuswebstudio.com/actas',
+    isNavigationAgent: true,
+    navigationStartUrl: 'https://nexuswebstudio.com/actas',
     model: 'Gemini 3.8 Flash',
     icon: 'ClipboardList',
     status: 'autonomous',
@@ -204,6 +213,8 @@ export const DEFAULT_INITIAL_AGENTS: AiAgent[] = [
     trainedInstructions:
       'Transformar la visión de la Junta Directiva en ejecución operativa real, supervisar metas comerciales de software y garantizar la máxima excelencia al cliente.',
     baseUrl: 'https://nexuswebstudio.com',
+    isNavigationAgent: true,
+    navigationStartUrl: 'https://nexuswebstudio.com',
     model: 'Gemini 3.8 Flash',
     icon: 'Target',
     status: 'autonomous',
@@ -220,6 +231,8 @@ export const DEFAULT_INITIAL_AGENTS: AiAgent[] = [
     trainedInstructions:
       'Revisar la sintaxis de los componentes React, asegurar tipado estricto en TypeScript sin "any", optimizar hooks de React y mantener arquitectura modular limpia.',
     baseUrl: 'https://github.com/nexuswebstudio/nexus-platform-v2',
+    isNavigationAgent: true,
+    navigationStartUrl: 'https://github.com/nexuswebstudio/nexus-platform-v2',
     model: 'Gemini 3.8 Flash',
     icon: 'Code',
     status: 'active',
@@ -236,6 +249,8 @@ export const DEFAULT_INITIAL_AGENTS: AiAgent[] = [
     trainedInstructions:
       'Verificar minuciosamente la configuración de Firestore Security Rules, comprobar que ningún endpoint exponga tokens sensibles y validar esquemas de datos.',
     baseUrl: 'https://nexuswebstudio.com/auditoria-qa',
+    isNavigationAgent: true,
+    navigationStartUrl: 'https://nexuswebstudio.com/auditoria-qa',
     model: 'Gemini 3.8 Flash',
     icon: 'ShieldCheck',
     status: 'autonomous',
@@ -252,6 +267,8 @@ export const DEFAULT_INITIAL_AGENTS: AiAgent[] = [
     trainedInstructions:
       'Generar metadatos OpenGraph, Schema.org de tipo Organization/WebSite y auditar el etiquetado semántico HTML de la plataforma.',
     baseUrl: 'https://nexuswebstudio.com/seo-schema',
+    isNavigationAgent: true,
+    navigationStartUrl: 'https://nexuswebstudio.com/seo-schema',
     model: 'Gemini 3.8 Flash',
     icon: 'FileText',
     status: 'active',
@@ -268,6 +285,8 @@ export const DEFAULT_INITIAL_AGENTS: AiAgent[] = [
     trainedInstructions:
       'Escanear tickets de soporte pendientes, redactar respuestas profesionales en español y clasificar prioridades según acuerdos SLA.',
     baseUrl: 'https://web.whatsapp.com',
+    isNavigationAgent: true,
+    navigationStartUrl: 'https://web.whatsapp.com',
     model: 'Gemini 3.8 Flash',
     icon: 'MessageSquare',
     status: 'active',
@@ -284,6 +303,8 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
   const [activeTab, setActiveTab] = useState<'chat' | 'history' | 'agents' | 'browser' | 'training' | 'logs' | 'webhooks'>('chat');
   const [selectedAgentId, setSelectedAgentId] = useState<string>('agent_architect');
   const [browserStartUrl, setBrowserStartUrl] = useState<string>('https://github.com/nexuswebstudio/nexus-platform-v2');
+  const [showEmbeddedBrowser, setShowEmbeddedBrowser] = useState<boolean>(false);
+  const [historySearchQuery, setHistorySearchQuery] = useState<string>('');
   const [showInlineTraining, setShowInlineTraining] = useState<boolean>(false);
   const hasSeededRef = React.useRef<boolean>(false);
   const hasSeededHistoryRef = React.useRef<boolean>(false);
@@ -292,6 +313,7 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
   const syncedAgentIdRef = React.useRef<string>('');
   const [chatHistorySessions, setChatHistorySessions] = useState<ChatConversationSession[]>([]);
   const [activeConversationIdByAgent, setActiveConversationIdByAgent] = useState<Record<string, string>>({});
+
   const contextConfigByAgentRef = React.useRef<
     Record<
       string,
@@ -458,18 +480,22 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
     }
   };
 
-  // Dedicated Agent Configuration Form State (Nombre, Sistema de Prompts, URL Base -> Firestore ai_agents)
+  // Dedicated Agent Configuration Form State (Nombre, Sistema de Prompts, URL Base, Agente de Navegación -> Firestore ai_agents)
   const [configMode, setConfigMode] = useState<'edit' | 'create'>('edit');
   const [configForm, setConfigForm] = useState<{
     name: string;
     trainedInstructions: string;
     baseUrl: string;
+    isNavigationAgent: boolean;
+    navigationStartUrl: string;
     role: string;
     model: string;
   }>({
     name: '',
     trainedInstructions: '',
     baseUrl: '',
+    isNavigationAgent: true,
+    navigationStartUrl: '',
     role: '',
     model: 'Gemini 3.8 Flash',
   });
@@ -489,6 +515,8 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
     customSkillName: string;
     trainedInstructions: string;
     baseUrl: string;
+    isNavigationAgent: boolean;
+    navigationStartUrl: string;
     model: string;
     icon: string;
     capabilities: string;
@@ -501,6 +529,8 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
     customSkillName: '',
     trainedInstructions: '',
     baseUrl: 'https://nexuswebstudio.com',
+    isNavigationAgent: true,
+    navigationStartUrl: 'https://nexuswebstudio.com',
     model: 'Gemini 3.8 Flash',
     icon: 'Brain',
     capabilities: 'Monitoreo, Auditoría, Reporte',
@@ -513,6 +543,8 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
     customSkillName: string;
     trainedInstructions: string;
     baseUrl: string;
+    isNavigationAgent: boolean;
+    navigationStartUrl: string;
     executionInterval: number;
     model: string;
     isAutonomous247: boolean;
@@ -520,6 +552,8 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
     customSkillName: '',
     trainedInstructions: '',
     baseUrl: '',
+    isNavigationAgent: true,
+    navigationStartUrl: '',
     executionInterval: 30,
     model: 'Gemini 3.8 Flash',
     isAutonomous247: true,
@@ -845,10 +879,15 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
 
   const populateFormsFromAgent = (agent: AiAgent) => {
     const resolvedBaseUrl = agent.baseUrl || 'https://nexuswebstudio.com';
+    const resolvedNavStartUrl = agent.navigationStartUrl || resolvedBaseUrl;
+    const resolvedIsNavAgent = agent.isNavigationAgent ?? true;
+
     setTrainingData({
       customSkillName: agent.customSkillName || '',
       trainedInstructions: agent.trainedInstructions || '',
       baseUrl: resolvedBaseUrl,
+      isNavigationAgent: resolvedIsNavAgent,
+      navigationStartUrl: resolvedNavStartUrl,
       executionInterval: agent.executionInterval || 30,
       model: agent.model || 'Gemini 3.8 Flash',
       isAutonomous247: agent.isAutonomous247 ?? true,
@@ -858,12 +897,14 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
         name: agent.name || '',
         trainedInstructions: agent.trainedInstructions || '',
         baseUrl: resolvedBaseUrl,
+        isNavigationAgent: resolvedIsNavAgent,
+        navigationStartUrl: resolvedNavStartUrl,
         role: agent.role || 'Agente Especialista IA',
         model: agent.model || 'Gemini 3.8 Flash',
       });
       setConfigErrors({});
     }
-    setBrowserStartUrl(normalizeAgentBaseUrl(resolvedBaseUrl));
+    setBrowserStartUrl(normalizeAgentBaseUrl(resolvedNavStartUrl));
   };
 
   // Auto-switch selected agent if deleted
@@ -931,6 +972,8 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
           session.trainedInstructionsSnapshot ||
           'Responder aplicando el historial y contexto de la conversación.',
         baseUrl: session.baseUrl || 'https://nexuswebstudio.com',
+        isNavigationAgent: true,
+        navigationStartUrl: session.baseUrl || 'https://nexuswebstudio.com',
         model: 'Gemini 3.8 Flash',
         icon: 'Bot',
         status: 'active',
@@ -1021,6 +1064,8 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
         name: '',
         trainedInstructions: '',
         baseUrl: 'https://nexuswebstudio.com',
+        isNavigationAgent: true,
+        navigationStartUrl: 'https://nexuswebstudio.com',
         role: 'Agente Especialista IA',
         model: 'Gemini 3.8 Flash',
       });
@@ -1029,13 +1074,15 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
         name: selectedAgent.name || '',
         trainedInstructions: selectedAgent.trainedInstructions || '',
         baseUrl: selectedAgent.baseUrl || 'https://nexuswebstudio.com',
+        isNavigationAgent: selectedAgent.isNavigationAgent ?? true,
+        navigationStartUrl: selectedAgent.navigationStartUrl || selectedAgent.baseUrl || 'https://nexuswebstudio.com',
         role: selectedAgent.role || 'Agente Especialista IA',
         model: selectedAgent.model || 'Gemini 3.8 Flash',
       });
     }
   };
 
-  // Save Agent Configuration (Nombre, Sistema de Prompts, URL Base) directly to Firestore `ai_agents`
+  // Save Agent Configuration (Nombre, Sistema de Prompts, URL Base, Navegación) directly to Firestore `ai_agents`
   const handleSaveAgentConfig = async (e: React.FormEvent) => {
     e.preventDefault();
     const validation = validateAgentConfiguration(configForm);
@@ -1080,6 +1127,8 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
         name: configuredDoc.name,
         trainedInstructions: configuredDoc.trainedInstructions,
         baseUrl: configuredDoc.baseUrl,
+        isNavigationAgent: configuredDoc.isNavigationAgent,
+        navigationStartUrl: configuredDoc.navigationStartUrl,
         role: configuredDoc.role,
         model: configuredDoc.model,
       });
@@ -1208,6 +1257,8 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
         name: newAgent.name,
         trainedInstructions: newAgent.trainedInstructions,
         baseUrl: newAgent.baseUrl,
+        isNavigationAgent: newAgent.isNavigationAgent,
+        navigationStartUrl: newAgent.navigationStartUrl || newAgent.baseUrl,
         role: newAgent.role || 'Especialista en IA',
         description: newAgent.description || 'Agente de IA configurado y guardado en Firestore.',
         customSkillName: newAgent.customSkillName || newAgent.name,
@@ -1231,7 +1282,7 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
           agentId: newId,
           agentName: createdAgent.name,
           skillExecuted: `Creación y Configuración Inicial: ${createdAgent.customSkillName}`,
-          outputSummary: `El agente "${createdAgent.name}" ha sido creado y guardado en la colección ai_agents con URL base ${createdAgent.baseUrl}.`,
+          outputSummary: `El agente "${createdAgent.name}" ha sido creado y guardado en la colección ai_agents con URL base ${createdAgent.baseUrl} y URL de Inicio de Navegación ${createdAgent.navigationStartUrl}.`,
           status: 'completed',
           timestamp: `${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES')}`,
         });
@@ -1241,11 +1292,14 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
 
       syncedAgentIdRef.current = newId;
       setSelectedAgentId(newId);
-      setBrowserStartUrl(createdAgent.baseUrl || 'https://nexuswebstudio.com');
+      const startUrl = createdAgent.navigationStartUrl || createdAgent.baseUrl || 'https://nexuswebstudio.com';
+      setBrowserStartUrl(startUrl);
       setConfigForm({
         name: createdAgent.name,
         trainedInstructions: createdAgent.trainedInstructions,
         baseUrl: createdAgent.baseUrl || '',
+        isNavigationAgent: createdAgent.isNavigationAgent ?? true,
+        navigationStartUrl: startUrl,
         role: createdAgent.role,
         model: createdAgent.model,
       });
@@ -1258,6 +1312,8 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
         customSkillName: '',
         trainedInstructions: '',
         baseUrl: 'https://nexuswebstudio.com',
+        isNavigationAgent: true,
+        navigationStartUrl: 'https://nexuswebstudio.com',
         model: 'Gemini 3.8 Flash',
         icon: 'Brain',
         capabilities: 'Monitoreo, Auditoría, Reporte',
@@ -1278,11 +1334,16 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
     const normalizedUrl = normalizeAgentBaseUrl(
       trainingData.baseUrl || selectedAgent.baseUrl || 'https://nexuswebstudio.com'
     );
+    const normalizedNavUrl = normalizeAgentBaseUrl(
+      trainingData.navigationStartUrl || trainingData.baseUrl || selectedAgent.navigationStartUrl || selectedAgent.baseUrl || 'https://nexuswebstudio.com'
+    );
 
     const updatedPayload = {
       customSkillName: trainingData.customSkillName,
       trainedInstructions: trainingData.trainedInstructions,
       baseUrl: normalizedUrl,
+      isNavigationAgent: Boolean(trainingData.isNavigationAgent),
+      navigationStartUrl: normalizedNavUrl,
       executionInterval: Number(trainingData.executionInterval),
       model: trainingData.model,
       isAutonomous247: trainingData.isAutonomous247,
@@ -1469,6 +1530,12 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
     const userDetectedUrl = extractUrlFromString(userText);
     const priorMessages = activeChatMessages;
 
+    // Auto-open embedded web browser if user requested a URL
+    if (userDetectedUrl) {
+      setBrowserStartUrl(normalizeAgentBaseUrl(userDetectedUrl));
+      setShowEmbeddedBrowser(true);
+    }
+
     const currentConvId =
       activeConversationIdByAgent[targetAgent.id] || `conv_${Date.now()}`;
     if (!activeConversationIdByAgent[targetAgent.id]) {
@@ -1531,6 +1598,12 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
         `[${targetAgent.name}]: Respuesta generada aplicando la habilidad "${targetAgent.customSkillName}".`;
       const agentDetectedUrl =
         extractUrlFromString(outputText) || userDetectedUrl || effectiveBaseUrl;
+
+      if (agentDetectedUrl) {
+        setBrowserStartUrl(normalizeAgentBaseUrl(agentDetectedUrl));
+        // Auto-show embedded browser if a URL was detected in conversation
+        setShowEmbeddedBrowser(true);
+      }
 
       const replyTimeStr = formatTimeHHMM();
       const agentMsg: ChatMessageItem = {
@@ -2419,17 +2492,48 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
               </div>
             </div>
 
-            {/* URL Base del Agente en Tab Entrenamiento */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                <Globe className="w-4 h-4 text-cyan-400" /> URL Base del Agente:
-              </label>
+            {/* URL Base y Configuración de Agente de Navegación en Tab Entrenamiento */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <Globe className="w-4 h-4 text-cyan-400" /> URL Base del Agente:
+                </label>
+                <input
+                  type="text"
+                  value={trainingData.baseUrl}
+                  onChange={(e) => setTrainingData({ ...trainingData, baseUrl: e.target.value })}
+                  placeholder="Ej: https://nexuswebstudio.com"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <Globe className="w-4 h-4 text-emerald-400" /> URL de Inicio (Navegador Interno):
+                </label>
+                <input
+                  type="text"
+                  value={trainingData.navigationStartUrl}
+                  onChange={(e) => setTrainingData({ ...trainingData, navigationStartUrl: e.target.value })}
+                  placeholder="Ej: https://nexuswebstudio.com"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between bg-slate-950 p-3.5 rounded-2xl border border-cyan-900/60">
+              <div className="flex items-center gap-2">
+                <Globe className="w-4 h-4 text-cyan-400 shrink-0" />
+                <div>
+                  <h4 className="font-bold text-white text-xs">Activar Agente de Navegación Web</h4>
+                  <p className="text-[11px] text-slate-400">Habilita la navegación interactiva dentro del contenedor iframe del chat</p>
+                </div>
+              </div>
               <input
-                type="text"
-                value={trainingData.baseUrl}
-                onChange={(e) => setTrainingData({ ...trainingData, baseUrl: e.target.value })}
-                placeholder="Ej: https://nexuswebstudio.com"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
+                type="checkbox"
+                checked={trainingData.isNavigationAgent}
+                onChange={(e) => setTrainingData({ ...trainingData, isNavigationAgent: e.target.checked })}
+                className="w-5 h-5 accent-cyan-600 rounded cursor-pointer"
               />
             </div>
 
@@ -2826,386 +2930,333 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
         </div>
       )}
 
-      {/* TAB 5: STUDIO CHATGPT & GEMINI + CONFIGURACIÓN DE AGENTE (ai_agents) */}
+      {/* TAB 5: CHATGPT STYLE CHAT & HISTORIAL + NAVEGADOR INTERNO INTEGRADO */}
       {activeTab === 'chat' && selectedAgent && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start animate-in fade-in duration-200">
           
-          {/* LEFT COLUMN: FORMULARIO DE CONFIGURACIÓN DEL AGENTE -> FIRESTORE ai_agents */}
-          <div className="lg:col-span-5 min-w-0 bg-slate-900 border border-cyan-800/50 rounded-3xl p-6 space-y-4 shadow-2xl">
-            <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2.5 bg-cyan-950 border border-cyan-800 rounded-2xl text-cyan-400 shrink-0">
-                  <Sliders className="w-5 h-5" />
+          {/* LEFT SIDEBAR: HISTORIAL Y SELECTOR DE AGENTES (ESTILO CHATGPT) */}
+          <div className="lg:col-span-4 xl:col-span-3.5 min-w-0 bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 shadow-2xl">
+            
+            {/* Top Bar: Nueva Conversación Button */}
+            <button
+              type="button"
+              onClick={() => {
+                const nextConvId = `conv_${Date.now()}`;
+                setActiveConversationIdByAgent((prev) => ({
+                  ...prev,
+                  [selectedAgent.id]: nextConvId,
+                }));
+                setChatThreadsByAgent((prev) => ({
+                  ...prev,
+                  [selectedAgent.id]: [buildAgentWelcomeMessage(selectedAgent)],
+                }));
+                showToast(`Nueva conversación iniciada con "${selectedAgent.name}"`, 'success');
+              }}
+              className="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs rounded-2xl shadow-lg shadow-purple-950 flex items-center justify-center gap-2 transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4 shrink-0" />
+              <span>+ Nueva Conversación</span>
+            </button>
+
+            {/* Selector de Agentes Activos */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-mono text-cyan-400 font-bold uppercase tracking-wider flex items-center justify-between">
+                <span>Agentes de IA ({agents.length})</span>
+                <span className="text-[10px] text-slate-500">Selecciona para hablar</span>
+              </label>
+
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                {agents.map((ag) => {
+                  const isSelected = ag.id === selectedAgentId;
+                  return (
+                    <button
+                      key={ag.id}
+                      type="button"
+                      onClick={() => handleSelectAgent(ag.id)}
+                      className={`w-full text-left p-2.5 rounded-xl text-xs transition-all flex items-center justify-between gap-2 border cursor-pointer ${
+                        isSelected
+                          ? 'bg-purple-950/80 border-purple-600 text-white shadow-md'
+                          : 'bg-slate-950/80 border-slate-800/80 text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <div className={`p-1.5 rounded-lg shrink-0 ${isSelected ? 'bg-purple-800 text-white' : 'bg-slate-900 text-slate-400'}`}>
+                          {renderAgentIcon(ag.icon, 'w-3.5 h-3.5')}
+                        </div>
+                        <div className="truncate">
+                          <p className="font-bold truncate text-[11px]">{ag.name}</p>
+                          <p className="text-[10px] text-slate-400 truncate">{ag.role}</p>
+                        </div>
+                      </div>
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Buscador e Historial Estilo ChatGPT */}
+            <div className="space-y-2 pt-2 border-t border-slate-800/80">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-mono text-slate-300 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                  <History className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Historial de Chats</span>
+                </label>
+                <span className="text-[10px] text-slate-500 font-mono tabular-nums">
+                  {chatHistorySessions.length} ses.
+                </span>
+              </div>
+
+              <input
+                type="text"
+                placeholder="Buscar conversación..."
+                value={historySearchQuery}
+                onChange={(e) => setHistorySearchQuery(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500"
+              />
+
+              {/* Lista de Historial Filtrado */}
+              <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1 scrollbar-thin">
+                {chatHistorySessions.filter((s) =>
+                  s.title.toLowerCase().includes(historySearchQuery.toLowerCase()) ||
+                  s.agentName.toLowerCase().includes(historySearchQuery.toLowerCase())
+                ).length === 0 ? (
+                  <p className="text-[11px] text-slate-500 text-center py-4 italic">
+                    Sin chats guardados en el historial.
+                  </p>
+                ) : (
+                  chatHistorySessions
+                    .filter((s) =>
+                      s.title.toLowerCase().includes(historySearchQuery.toLowerCase()) ||
+                      s.agentName.toLowerCase().includes(historySearchQuery.toLowerCase())
+                    )
+                    .map((session) => {
+                      const isActiveSession = activeConversationIdByAgent[session.agentId] === session.id;
+                      return (
+                        <div
+                          key={session.id}
+                          className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 group transition-all ${
+                            isActiveSession
+                              ? 'bg-cyan-950/80 border-cyan-600 text-white'
+                              : 'bg-slate-950/70 border-slate-800/80 text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                          }`}
+                        >
+                          <div
+                            onClick={() => handleResumeConversation(session)}
+                            className="flex-1 min-w-0 cursor-pointer"
+                          >
+                            <p className="font-bold truncate text-[11px] leading-tight">{session.title}</p>
+                            <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-400 font-mono">
+                              <span className="text-cyan-400">{session.agentName}</span>
+                              <span>•</span>
+                              <span>{session.messageCount || 0} msg</span>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteConversation(session.id)}
+                            className="p-1 text-slate-500 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity rounded"
+                            title="Eliminar del historial"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })
+                )}
+              </div>
+            </div>
+
+            {/* Ajustes Rápidos del Agente (Formulario ai_agents en Firestore) */}
+            <div className="pt-3 border-t border-slate-800/80">
+              <button
+                type="button"
+                onClick={() => setShowInlineTraining((prev) => !prev)}
+                className="w-full py-2 px-3 bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-semibold text-slate-300 hover:text-white flex items-center justify-between transition-all cursor-pointer"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Sliders className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Ajustes / System Prompt Agente</span>
+                </span>
+                <span className="text-[10px] text-cyan-400 font-mono">
+                  {showInlineTraining ? 'Ocultar' : 'Editar'}
+                </span>
+              </button>
+
+              {showInlineTraining && (
+                <form onSubmit={handleSaveAgentConfig} className="mt-3 space-y-3 text-xs animate-in fade-in">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">Nombre del Agente</label>
+                    <input
+                      type="text"
+                      value={configForm.name}
+                      onChange={(e) => {
+                        isConfigDirtyRef.current = true;
+                        setConfigForm({ ...configForm, name: e.target.value });
+                      }}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">Sistema de Prompts</label>
+                    <textarea
+                      rows={3}
+                      value={configForm.trainedInstructions}
+                      onChange={(e) => {
+                        isConfigDirtyRef.current = true;
+                        setConfigForm({ ...configForm, trainedInstructions: e.target.value });
+                      }}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-purple-500 font-mono text-[11px]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">URL Base</label>
+                    <input
+                      type="text"
+                      value={configForm.baseUrl}
+                      onChange={(e) => {
+                        isConfigDirtyRef.current = true;
+                        setConfigForm({ ...configForm, baseUrl: e.target.value });
+                      }}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500 font-mono text-[11px]"
+                    />
+                  </div>
+
+                  {/* Configuración de Agente de Navegación */}
+                  <div className="p-2.5 bg-slate-950 border border-slate-800/90 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-cyan-300 flex items-center gap-1.5">
+                        <Globe className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Agente de Navegación Web</span>
+                      </label>
+                      <input
+                        type="checkbox"
+                        checked={configForm.isNavigationAgent}
+                        onChange={(e) => {
+                          isConfigDirtyRef.current = true;
+                          setConfigForm({ ...configForm, isNavigationAgent: e.target.checked });
+                        }}
+                        className="w-4 h-4 accent-cyan-600 rounded cursor-pointer"
+                      />
+                    </div>
+                    {configForm.isNavigationAgent && (
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 mb-1">URL de inicio para el agente</label>
+                        <input
+                          type="text"
+                          value={configForm.navigationStartUrl}
+                          onChange={(e) => {
+                            isConfigDirtyRef.current = true;
+                            setConfigForm({ ...configForm, navigationStartUrl: e.target.value });
+                          }}
+                          placeholder="https://nexuswebstudio.com"
+                          className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono text-[11px]"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSavingConfig}
+                    className="w-full py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Guardar en Firestore</span>
+                  </button>
+                </form>
+              )}
+            </div>
+
+          </div>
+
+          {/* RIGHT MAIN AREA: CONVERSACIÓN ACTIVA & NAVEGADOR INTERNO INTEGRADO */}
+          <div className="lg:col-span-8 xl:col-span-8.5 min-w-0 bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-2xl">
+            
+            {/* Header: Agente Activo & Botón de Navegador Interno */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-purple-950 border border-purple-800 rounded-2xl text-purple-300 shrink-0">
+                  {renderAgentIcon(selectedAgent.icon, 'w-6 h-6')}
                 </div>
                 <div>
-                  <h2 className="text-base font-bold text-white leading-tight">
-                    Configuración de Agente de IA
+                  <h2 className="text-base font-bold text-white flex items-center gap-2 flex-wrap">
+                    <span>{selectedAgent.name}</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+                      🟢 Activo 24/7
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 flex items-center gap-1">
+                      <Globe className="w-3 h-3 text-cyan-400 shrink-0" />
+                      <span>URL Inicio: {selectedAgent.navigationStartUrl || selectedAgent.baseUrl || 'https://nexuswebstudio.com'}</span>
+                    </span>
                   </h2>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Guarda nombre, sistema de prompts y URL base en Firestore (<code className="text-cyan-400 font-mono">ai_agents</code>)
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Mode Toggle: Editar Seleccionado vs Crear Nuevo Agente */}
-            <div className="grid grid-cols-2 gap-2 bg-slate-950 p-1.5 rounded-2xl border border-slate-800 text-xs">
-              <button
-                type="button"
-                onClick={() => handleSwitchConfigMode('edit')}
-                className={`py-2 px-3 rounded-xl font-bold transition-all cursor-pointer ${
-                  configMode === 'edit'
-                    ? 'bg-cyan-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Editar Seleccionado
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSwitchConfigMode('create')}
-                className={`py-2 px-3 rounded-xl font-bold transition-all cursor-pointer ${
-                  configMode === 'create'
-                    ? 'bg-purple-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                + Nuevo Agente
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveAgentConfig} noValidate className="space-y-4 text-xs">
-              {/* Campo 1: Nombre del Agente */}
-              <div className="space-y-1.5">
-                <label htmlFor="agent-config-name" className="font-bold text-slate-200 flex items-center gap-1.5">
-                  <Bot className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Nombre del Agente *</span>
-                </label>
-                <input
-                  id="agent-config-name"
-                  name="name"
-                  type="text"
-                  value={configForm.name}
-                  onChange={(e) => {
-                    isConfigDirtyRef.current = true;
-                    setConfigForm({ ...configForm, name: e.target.value });
-                    if (configErrors.name) setConfigErrors({ ...configErrors, name: undefined });
-                  }}
-                  placeholder="Ej: Agente Analista Web Nexus"
-                  className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none font-sans ${
-                    configErrors.name
-                      ? 'border-rose-500 focus:border-rose-400'
-                      : 'border-slate-800 focus:border-cyan-500'
-                  }`}
-                />
-                {configErrors.name && (
-                  <p role="alert" className="text-[11px] text-rose-400 font-semibold">
-                    {configErrors.name}
-                  </p>
-                )}
-              </div>
-
-              {/* Campo 2: Sistema de Prompts (Instrucciones) */}
-              <div className="space-y-1.5">
-                <label htmlFor="agent-config-prompt" className="font-bold text-slate-200 flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-purple-400" />
-                  <span>Sistema de Prompts (Instrucciones) *</span>
-                </label>
-                <textarea
-                  id="agent-config-prompt"
-                  name="trainedInstructions"
-                  rows={4}
-                  value={configForm.trainedInstructions}
-                  onChange={(e) => {
-                    isConfigDirtyRef.current = true;
-                    setConfigForm({ ...configForm, trainedInstructions: e.target.value });
-                    if (configErrors.trainedInstructions) {
-                      setConfigErrors({ ...configErrors, trainedInstructions: undefined });
-                    }
-                  }}
-                  placeholder="Escribe las instrucciones del sistema, objetivos, tono de respuesta y reglas de operación para el agente..."
-                  className={`w-full bg-slate-950 border rounded-xl p-3 text-xs text-slate-100 focus:outline-none font-mono leading-relaxed ${
-                    configErrors.trainedInstructions
-                      ? 'border-rose-500 focus:border-rose-400'
-                      : 'border-slate-800 focus:border-purple-500'
-                  }`}
-                />
-                {configErrors.trainedInstructions && (
-                  <p role="alert" className="text-[11px] text-rose-400 font-semibold">
-                    {configErrors.trainedInstructions}
-                  </p>
-                )}
-              </div>
-
-              {/* Campo 3: URL Base del Agente */}
-              <div className="space-y-1.5">
-                <label htmlFor="agent-config-base-url" className="font-bold text-slate-200 flex items-center gap-1.5">
-                  <Globe className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>URL Base del Agente *</span>
-                </label>
-                <input
-                  id="agent-config-base-url"
-                  name="baseUrl"
-                  type="text"
-                  value={configForm.baseUrl}
-                  onChange={(e) => {
-                    isConfigDirtyRef.current = true;
-                    setConfigForm({ ...configForm, baseUrl: e.target.value });
-                    if (configErrors.baseUrl) setConfigErrors({ ...configErrors, baseUrl: undefined });
-                  }}
-                  placeholder="Ej: https://nexuswebstudio.com"
-                  className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none font-mono ${
-                    configErrors.baseUrl
-                      ? 'border-rose-500 focus:border-rose-400'
-                      : 'border-slate-800 focus:border-emerald-500'
-                  }`}
-                />
-                {configErrors.baseUrl && (
-                  <p role="alert" className="text-[11px] text-rose-400 font-semibold">
-                    {configErrors.baseUrl}
-                  </p>
-                )}
-              </div>
-
-              {/* Campos opcionales: Rol y Modelo */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                <div className="space-y-1">
-                  <label htmlFor="agent-config-role" className="font-semibold text-slate-300 block">
-                    Rol / Especialidad
-                  </label>
-                  <input
-                    id="agent-config-role"
-                    type="text"
-                    value={configForm.role}
-                    onChange={(e) => setConfigForm({ ...configForm, role: e.target.value })}
-                    placeholder="Especialista IA"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label htmlFor="agent-config-model" className="font-semibold text-slate-300 block">
-                    Modelo Gemini
-                  </label>
-                  <select
-                    id="agent-config-model"
-                    value={configForm.model}
-                    onChange={(e) => setConfigForm({ ...configForm, model: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
-                  >
-                    <option value="Gemini 3.8 Flash">Gemini 3.8 Flash</option>
-                    <option value="Gemini 3.1 Flash Lite">Gemini 3.1 Flash Lite</option>
-                    <option value="Gemini Flash Latest">Gemini Flash Latest</option>
-                  </select>
+                  <p className="text-xs text-slate-400 mt-0.5">{selectedAgent.role}</p>
                 </div>
               </div>
 
-              {/* Feedback Banner */}
-              {configSaveStatus && (
-                <div
-                  role="status"
-                  className={`p-3 rounded-xl border text-xs font-semibold flex items-start gap-2 ${
-                    configSaveStatus.type === 'success'
-                      ? 'bg-emerald-950/80 border-emerald-700 text-emerald-200'
-                      : 'bg-rose-950/80 border-rose-700 text-rose-200'
-                  }`}
-                >
-                  <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
-                  <span>{configSaveStatus.message}</span>
-                </div>
-              )}
-
-              {/* Submit & Browse Actions */}
-              <div className="flex flex-col 2xl:flex-row gap-2 pt-2">
+              {/* Action Buttons: Toggle Navegador Interno iframe */}
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
                 <button
-                  type="submit"
-                  disabled={isSavingConfig}
-                  className="flex-1 py-2.5 px-4 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-950 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                  type="button"
+                  onClick={() => {
+                    const startUrl = selectedAgent.navigationStartUrl || selectedAgent.baseUrl || 'https://nexuswebstudio.com';
+                    setBrowserStartUrl(startUrl);
+                    setShowEmbeddedBrowser((prev) => !prev);
+                  }}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-md ${
+                    showEmbeddedBrowser
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-emerald-950/50'
+                      : 'bg-slate-800 text-emerald-400 hover:bg-slate-700 border border-slate-700'
+                  }`}
+                  title="Abrir o cerrar el contenedor iframe de navegación web"
                 >
-                  {isSavingConfig ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                      <span>Guardando en Firestore...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4 shrink-0" />
-                      <span>
-                        {configMode === 'create'
-                          ? 'Crear y Guardar en Firestore (ai_agents)'
-                          : 'Guardar Configuración en Firestore'}
-                      </span>
-                    </>
-                  )}
+                  <Globe className="w-4 h-4 shrink-0" />
+                  <span>{showEmbeddedBrowser ? 'Ocultar iframe' : 'Contenedor iframe (URL Inicio)'}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => {
-                    const targetUrl =
-                      normalizeAgentBaseUrl(configForm.baseUrl) ||
-                      selectedAgent.baseUrl ||
-                      'https://nexuswebstudio.com';
-                    setBrowserStartUrl(targetUrl);
-                    setActiveTab('browser');
+                    const nextConvId = `conv_${Date.now()}`;
+                    setActiveConversationIdByAgent((prev) => ({
+                      ...prev,
+                      [selectedAgent.id]: nextConvId,
+                    }));
+                    setChatThreadsByAgent((prev) => ({
+                      ...prev,
+                      [selectedAgent.id]: [buildAgentWelcomeMessage(selectedAgent)],
+                    }));
                   }}
-                  className="py-2.5 px-3.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold text-xs rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0 whitespace-nowrap"
-                  title="Abrir URL base en el navegador integrado"
+                  className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition-colors cursor-pointer"
+                  title="Reiniciar chat"
                 >
-                  <Globe className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span>Probar URL</span>
+                  <RefreshCw className="w-4 h-4" />
                 </button>
               </div>
-            </form>
-          </div>
-
-          {/* RIGHT COLUMN: STUDIO CHATGPT & GEMINI INTERACTIVO POR AGENTE */}
-          <div className="lg:col-span-7 min-w-0 bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-2xl">
-            
-            {/* Top Studio Controls: Saved Agent Selector + Context & Browser Actions */}
-            <div className="flex flex-col gap-3 pb-4 border-b border-slate-800">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <label
-                  htmlFor="studio-agent-select"
-                  className="text-[11px] font-mono text-purple-300 font-bold uppercase tracking-wider flex items-center gap-2"
-                >
-                  <span className="p-1.5 bg-purple-950 border border-purple-800 rounded-lg text-purple-300 shrink-0">
-                    {renderAgentIcon(selectedAgent.icon, 'w-4 h-4')}
-                  </span>
-                  <span>Seleccionar Agente para Conversar ({agents.length})</span>
-                </label>
-
-                {/* Quick Action Studio Buttons */}
-                <div className="flex flex-wrap items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (selectedAgent.baseUrl) {
-                        setBrowserStartUrl(normalizeAgentBaseUrl(selectedAgent.baseUrl));
-                      }
-                      setActiveTab('browser');
-                    }}
-                    className="px-3 py-1.5 bg-emerald-950 hover:bg-emerald-900 border border-emerald-800 text-emerald-300 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
-                  >
-                    <Globe className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span>Abrir Navegador Web</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('history')}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-cyan-200 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap tabular-nums"
-                    title="Ver historial de conversaciones pasadas por fecha o agente"
-                  >
-                    <History className="w-3.5 h-3.5 shrink-0" />
-                    <span>Historial ({chatHistorySessions.length})</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const nextConvId = `conv_${Date.now()}`;
-                      setActiveConversationIdByAgent((prev) => ({
-                        ...prev,
-                        [selectedAgent.id]: nextConvId,
-                      }));
-                      setChatThreadsByAgent((prev) => ({
-                        ...prev,
-                        [selectedAgent.id]: [buildAgentWelcomeMessage(selectedAgent)],
-                      }));
-                    }}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap"
-                    title="Iniciar una nueva conversación manteniendo las anteriores en el historial"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5 shrink-0" />
-                    <span>Nueva Charla</span>
-                  </button>
-                </div>
-              </div>
-
-              <select
-                id="studio-agent-select"
-                value={selectedAgentId}
-                onChange={(e) => handleSelectAgent(e.target.value)}
-                className="w-full bg-slate-950 text-white font-bold text-xs sm:text-sm border border-slate-800 rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-purple-500 cursor-pointer"
-              >
-                {agents.map((ag) => (
-                  <option key={ag.id} value={ag.id}>
-                    {ag.name} ({ag.role})
-                  </option>
-                ))}
-              </select>
             </div>
 
-            {/* Active Agent System Prompt & Context Configuration Panel */}
-            <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-3.5 space-y-2.5 text-xs">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-[11px] text-cyan-400 font-bold">
-                    URL Base: <span className="text-white">{selectedAgent.baseUrl || 'No configurada'}</span>
-                  </span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800">
-                    {selectedAgent.model}
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setShowFullContextDrawer((prev) => !prev)}
-                  className="text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 underline cursor-pointer"
-                >
-                  {showFullContextDrawer ? 'Ocultar contexto' : 'Configurar / Ver contexto completo'}
-                </button>
+            {/* DISPLAY NAVEGADOR INTERNO INTEGRADO SI ESTÁ ACTIVO */}
+            {showEmbeddedBrowser && (
+              <div className="animate-in slide-in-from-top-3 duration-200">
+                <WebBrowserView
+                  initialUrl={browserStartUrl}
+                  agentName={selectedAgent.name}
+                  agentRole={selectedAgent.role}
+                  onExecuteAgentAction={(action, url, payload) => {
+                    showToast(`Acción de Agente "${action}" ejecutada exitosamente en ${url}`, 'success');
+                  }}
+                  onClose={() => setShowEmbeddedBrowser(false)}
+                />
               </div>
-
-              <p className={`text-[11px] text-slate-300 font-mono ${showFullContextDrawer ? 'whitespace-pre-wrap' : 'line-clamp-2'}`}>
-                <strong className="text-purple-400">Prompt del Sistema:</strong> {selectedAgent.trainedInstructions}
-              </p>
-
-              {showFullContextDrawer && (
-                <div className="pt-2.5 border-t border-slate-800/90 space-y-2.5 animate-in fade-in duration-150">
-                  <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-300">
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={includeBaseUrlContext}
-                        onChange={(e) => setIncludeBaseUrlContext(e.target.checked)}
-                        className="accent-cyan-500 rounded"
-                      />
-                      <span>Incluir URL Base en contexto</span>
-                    </label>
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={includeCapabilitiesContext}
-                        onChange={(e) => setIncludeCapabilitiesContext(e.target.checked)}
-                        className="accent-purple-500 rounded"
-                      />
-                      <span>Incluir Capacidades ({selectedAgent.capabilities.length})</span>
-                    </label>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label htmlFor="chat-session-context" className="text-[11px] font-semibold text-slate-300 block">
-                      Contexto Adicional de Conversación (opcional):
-                    </label>
-                    <input
-                      id="chat-session-context"
-                      type="text"
-                      value={sessionContextNote}
-                      onChange={(e) => setSessionContextNote(e.target.value)}
-                      placeholder="Ej: Prioriza recomendaciones de rendimiento React y seguridad Firestore..."
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
+            )}
 
             {/* Chat Messages Feed Stream */}
             <div
               ref={chatFeedRef}
-              className="h-80 overflow-y-auto bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-4 font-sans text-xs"
+              className="h-96 overflow-y-auto bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-4 font-sans text-xs scrollbar-thin"
             >
               {activeChatMessages.map((msg) => (
                 <div
@@ -3231,19 +3282,19 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
 
                     <p className="[overflow-wrap:anywhere]">{msg.text}</p>
 
-                    {/* Interactive URL Launcher Button */}
+                    {/* Interactive URL Launcher Button -> Navegador Interno */}
                     {msg.detectedUrl && (
                       <div className="mt-3 pt-2 border-t border-slate-800/80">
                         <button
                           type="button"
                           onClick={() => {
                             setBrowserStartUrl(msg.detectedUrl!);
-                            setActiveTab('browser');
+                            setShowEmbeddedBrowser(true);
                           }}
                           className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow-lg flex items-center gap-2 transition-all cursor-pointer max-w-full text-left"
                         >
                           <Globe className="w-4 h-4 text-emerald-200 shrink-0" />
-                          <span className="truncate">Abrir "{msg.detectedUrl}" en Navegador Integrado</span>
+                          <span className="truncate">Abrir "{msg.detectedUrl}" en Navegador Interno</span>
                         </button>
                       </div>
                     )}
@@ -3256,9 +3307,28 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
               {isProcessing && (
                 <div className="flex items-center gap-2 text-purple-400 text-xs font-mono p-2">
                   <Loader2 className="w-4 h-4 animate-spin text-purple-300" />
-                  <span>Procesando consulta con {selectedAgent.name}...</span>
+                  <span>Procesando consulta y verificando sitio web con {selectedAgent.name}...</span>
                 </div>
               )}
+            </div>
+
+            {/* Quick Prompt Suggestions Bar */}
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-none text-[11px] pt-1">
+              <span className="text-slate-500 font-mono text-[10px] shrink-0">Sugerencias:</span>
+              {[
+                `Ingresa a ${selectedAgent.baseUrl || 'https://nexuswebstudio.com'}`,
+                `Visita https://github.com/nexuswebstudio/nexus-platform-v2`,
+                `Abre https://google.com`,
+              ].map((sug, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setPromptInput(sug)}
+                  className="px-2.5 py-1 bg-slate-950 hover:bg-slate-800 text-cyan-300 border border-slate-800 rounded-lg whitespace-nowrap shrink-0 transition-colors text-[10px] font-mono cursor-pointer"
+                >
+                  {sug}
+                </button>
+              ))}
             </div>
 
             {/* Interactive Input Form */}
@@ -3267,16 +3337,16 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
                 <input
                   id="ai-chat-input"
                   type="text"
-                  placeholder={`Escribe a ${selectedAgent.name} o pega una URL...`}
+                  placeholder={`Escribe a ${selectedAgent.name} o solicita ingresar a una URL (ej: ingresa a https://...)...`}
                   value={promptInput}
                   onChange={(e) => setPromptInput(e.target.value)}
-                  className="flex-1 min-w-0 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-purple-500 font-sans shadow-inner"
+                  className="flex-1 min-w-0 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 font-sans shadow-inner"
                 />
 
                 <button
                   type="submit"
                   disabled={isProcessing || !promptInput.trim()}
-                  className="px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-950 flex items-center gap-2 transition-all shrink-0 cursor-pointer"
+                  className="px-5 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-950 flex items-center gap-2 transition-all shrink-0 cursor-pointer"
                 >
                   <Send className="w-4 h-4" />
                   <span>Enviar a IA</span>
@@ -3290,13 +3360,13 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
                       selectedAgent.baseUrl ||
                       'https://web.whatsapp.com';
                     setBrowserStartUrl(url);
-                    setActiveTab('browser');
+                    setShowEmbeddedBrowser(true);
                   }}
                   className="px-3.5 py-3 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold text-xs rounded-xl border border-slate-700 flex items-center gap-1.5 transition-all shrink-0 cursor-pointer"
-                  title="Navegar URL ingresada en el Navegador Web"
+                  title="Visualizar URL en el Navegador Interno"
                 >
                   <Globe className="w-4 h-4 text-emerald-400" />
-                  <span className="hidden sm:inline">Navegar URL</span>
+                  <span className="hidden sm:inline">Navegador Interno</span>
                 </button>
               </div>
             </form>
@@ -3604,6 +3674,41 @@ export const AiAgentsModule: React.FC<AiAgentsModuleProps> = ({ currentUser }) =
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
                   />
                 </div>
+              </div>
+
+              {/* Configuración de Agente de Navegación */}
+              <div className="bg-slate-950 border border-cyan-900/60 rounded-2xl p-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-cyan-400" />
+                    <div>
+                      <h4 className="font-bold text-white text-xs">Configuración de Agente de Navegación</h4>
+                      <p className="text-[11px] text-slate-400">Permite visualizar y controlar sitios web desde el contenedor iframe del chat</p>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={newAgent.isNavigationAgent}
+                    onChange={(e) => setNewAgent({ ...newAgent, isNavigationAgent: e.target.checked })}
+                    className="w-5 h-5 accent-cyan-600 rounded cursor-pointer"
+                  />
+                </div>
+
+                {newAgent.isNavigationAgent && (
+                  <div className="pt-2 border-t border-slate-800/80">
+                    <label htmlFor="modal-agent-nav-url" className="font-bold text-slate-300 block mb-1">
+                      URL de inicio para el agente de navegación *:
+                    </label>
+                    <input
+                      id="modal-agent-nav-url"
+                      type="text"
+                      placeholder="Ej: https://nexuswebstudio.com"
+                      value={newAgent.navigationStartUrl}
+                      onChange={(e) => setNewAgent({ ...newAgent, navigationStartUrl: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500 font-mono text-xs"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1">

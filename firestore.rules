@@ -60,5 +60,15 @@ service cloud.firestore {
     match /ai_agent_conversations/{conversationId} {
       allow read, write: if true;
     }
+
+    // Agency Social Links Collection
+    match /agency_social_links/{linkId} {
+      allow read, write: if true;
+    }
+
+    // Agency Profile Collection
+    match /agency_profile/{profileId} {
+      allow read, write: if true;
+    }
   }
 }

@@ -2,6 +2,8 @@ export interface AiAgentConfigInput {
   name: string;
   trainedInstructions: string;
   baseUrl: string;
+  isNavigationAgent?: boolean;
+  navigationStartUrl?: string;
   role?: string;
   description?: string;
   customSkillName?: string;
@@ -16,6 +18,7 @@ export interface AiAgentConfigValidationErrors {
   name?: string;
   trainedInstructions?: string;
   baseUrl?: string;
+  navigationStartUrl?: string;
 }
 
 export interface AiAgentConfigValidationResult {
@@ -31,6 +34,8 @@ export interface ConfiguredAiAgentDocument {
   customSkillName: string;
   trainedInstructions: string;
   baseUrl: string;
+  isNavigationAgent: boolean;
+  navigationStartUrl: string;
   model: string;
   icon: string;
   status: 'active' | 'idle' | 'busy' | 'autonomous';
@@ -182,6 +187,10 @@ export function buildConfiguredAgentDocument(
     resolvedCapabilities = ['System Prompt Personalizado', 'Navegación URL Base'];
   }
 
+  const isNavAgent = input.isNavigationAgent ?? existing?.isNavigationAgent ?? true;
+  const rawStartUrl = input.navigationStartUrl || input.baseUrl || existing?.navigationStartUrl || existing?.baseUrl || 'https://nexuswebstudio.com';
+  const normalizedStartUrl = normalizeAgentBaseUrl(rawStartUrl);
+
   const doc: ConfiguredAiAgentDocument = {
     id: docId,
     name: trimmedName,
@@ -194,6 +203,8 @@ export function buildConfiguredAgentDocument(
       `Prompt: ${trimmedName}`,
     trainedInstructions: trimmedPrompt,
     baseUrl: normalizedBaseUrl,
+    isNavigationAgent: Boolean(isNavAgent),
+    navigationStartUrl: normalizedStartUrl,
     model: (input.model ?? existing?.model ?? '').trim() || 'Gemini 3.8 Flash',
     icon: (input.icon ?? existing?.icon ?? '').trim() || 'Bot',
     status: isAutonomous ? 'autonomous' : 'active',

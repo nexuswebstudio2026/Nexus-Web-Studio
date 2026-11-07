@@ -9,28 +9,27 @@ import {
   Plus,
   X,
   ExternalLink,
-  ShieldCheck,
-  Zap,
   Copy,
-  CheckCircle2,
-  Code,
-  MessageSquare,
-  Share2,
+  Check,
   Bookmark,
-  Monitor,
-  Terminal,
   Search,
-  Sparkles,
-  GitBranch,
-  Folder,
-  FileCode,
-  Send,
-  User,
+  Monitor,
+  ShieldCheck,
+  AlertTriangle,
+  Share2,
   ThumbsUp,
   MessageCircle,
-  QrCode,
-  Check,
-  AlertTriangle
+  Send,
+  Heart,
+  Sparkles,
+  Compass,
+  Radio,
+  Terminal,
+  Grid,
+  Users,
+  Bell,
+  Play,
+  Layers,
 } from 'lucide-react';
 import { normalizeAgentBaseUrl, derivePageTitleFromUrl } from '../utils/agentConfig';
 
@@ -47,18 +46,24 @@ export interface BrowserTab {
   title: string;
   url: string;
   favicon?: string;
-  isLoading?: boolean;
 }
 
+export type BrowserTheme = 'chrome' | 'safari' | 'edge' | 'opera';
+
+const OFFICIAL_NEXUS_LOGO = '/assets/aistudio/768420689_122100971391434882_47020785483964272_n__1__df72d03a.jpg';
+
 export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
-  initialUrl = 'https://web.whatsapp.com',
+  initialUrl = 'https://www.facebook.com/profile.php?id=61593046477590',
   agentName = 'Agente de IA Nexus',
-  agentRole = 'Automatización & Navegación Web 24/7',
-  onExecuteAgentAction,
+  agentRole = 'Navegación Web 24/7',
   onClose,
 }) => {
+  const resolvedInitialUrl = normalizeAgentBaseUrl(initialUrl) || 'https://www.facebook.com/profile.php?id=61593046477590';
+
+  // Browser theme engines: Google Chrome, Apple Safari, Microsoft Edge, Opera
+  const [browserTheme, setBrowserTheme] = useState<BrowserTheme>('chrome');
+
   // Tabs State
-  const resolvedInitialUrl = normalizeAgentBaseUrl(initialUrl) || 'https://web.whatsapp.com';
   const [tabs, setTabs] = useState<BrowserTab[]>([
     {
       id: 'tab_1',
@@ -71,77 +76,38 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
   // Active Tab Derived Properties
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
   const [urlInput, setUrlInput] = useState<string>(activeTab ? activeTab.url : resolvedInitialUrl);
-  const [renderMode, setRenderMode] = useState<'emulator' | 'iframe'>('emulator');
   const [iframeError, setIframeError] = useState<boolean>(false);
   const [copiedUrl, setCopiedUrl] = useState<boolean>(false);
 
   // Navigation History
-  const [historyStack, setHistoryStack] = useState<string[]>([initialUrl]);
+  const [historyStack, setHistoryStack] = useState<string[]>([resolvedInitialUrl]);
   const [historyIndex, setHistoryIndex] = useState<number>(0);
 
-  // GitHub Specific State Simulation
-  const [githubRepo, setGithubRepo] = useState({
-    name: 'nexus-platform-v2',
-    owner: 'nexuswebstudio',
-    branch: 'main',
-    stars: 128,
-    forks: 34,
-    lastCommitMsg: 'feat: add AI Agents Module with WhatsApp & GitHub integrations',
-    lastCommitTime: 'Hace 10 minutos',
-    files: [
-      { name: 'src/components/modules/AiAgentsModule.tsx', type: 'file', size: '78 KB' },
-      { name: 'src/components/WebBrowserView.tsx', type: 'file', size: '32 KB' },
-      { name: 'src/lib/webhookHandlers.ts', type: 'file', size: '12 KB' },
-      { name: 'server.ts', type: 'file', size: '14 KB' },
-      { name: 'package.json', type: 'file', size: '2 KB' },
-    ],
-  });
-  const [githubCommitInput, setGithubCommitInput] = useState('');
-  const [githubStatusMsg, setGithubStatusMsg] = useState<string | null>(null);
-
-  // WhatsApp Specific State Simulation
-  const [whatsappPhone, setWhatsappPhone] = useState('+573043470984');
-  const [whatsappIsConnected, setWhatsappIsConnected] = useState(true);
-  const [whatsappChatInput, setWhatsappChatInput] = useState('');
-  const [whatsappMessages, setWhatsappMessages] = useState<{ sender: 'user' | 'agent' | 'system'; text: string; time: string }[]>([
+  // Interactive Facebook Simulation States
+  const [facebookLiked, setFacebookLiked] = useState<boolean>(true);
+  const [facebookLikesCount, setFacebookLikesCount] = useState<number>(1284);
+  const [facebookCommentText, setFacebookCommentText] = useState<string>('');
+  const [facebookCommentsList, setFacebookCommentsList] = useState<
+    { id: string; author: string; avatar?: string; text: string; time: string }[]
+  >([
     {
-      sender: 'system',
-      text: '🟢 Sesión de WhatsApp Web del Agente vinculada mediante código QR.',
-      time: '12:00 PM',
+      id: 'c1',
+      author: 'Carlos Mendoza',
+      text: 'Excelente plataforma. Los agentes autónomos optimizan el flujo de trabajo increíblemente.',
+      time: 'Hace 15 min',
     },
     {
-      sender: 'agent',
-      text: '¡Hola! Soy el Agente de IA. Estoy conectado a tu WhatsApp del negocio y respondiendo consultas 24/7.',
-      time: '12:01 PM',
+      id: 'c2',
+      author: 'María Fernanda Ruiz',
+      text: '¡El sistema de navegación multinavegador en tiempo real está fantástico! 🔥',
+      time: 'Hace 5 min',
     },
   ]);
-
-  // Social Media Post Simulation State
-  const [socialPostInput, setSocialPostInput] = useState('');
-  const [socialFeed, setSocialFeed] = useState<{ id: string; author: string; avatar: string; content: string; time: string; likes: number }[]>([
-    {
-      id: 'p1',
-      author: 'Nexus Web Studio',
-      avatar: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80',
-      content: '🚀 Lanzamos oficialmente nuestro Módulo de Agentes de IA autónomos con navegación web directa.',
-      time: 'Hace 1 hora',
-      likes: 42,
-    },
-  ]);
-
-  const isKnownEmulatorDomain = (url: string): boolean =>
-    url.includes('whatsapp.com') ||
-    url.includes('github.com') ||
-    url.includes('facebook.com') ||
-    url.includes('linkedin.com') ||
-    url.includes('x.com') ||
-    url.includes('twitter.com') ||
-    url.includes('instagram.com');
 
   // Helper: Normalize URL
   const normalizeUrl = (input: string): string => {
     const clean = normalizeAgentBaseUrl(input);
-    return clean || 'https://google.com';
+    return clean || 'https://www.facebook.com';
   };
 
   // Navigate to URL
@@ -149,7 +115,6 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
     const formatted = normalizeUrl(targetUrl);
     setUrlInput(formatted);
 
-    // Update active tab
     const pageTitle = derivePageTitleFromUrl(formatted);
 
     setTabs((prev) =>
@@ -166,7 +131,6 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
       });
     }
 
-    setRenderMode(isKnownEmulatorDomain(formatted) ? 'emulator' : 'iframe');
     setIframeError(false);
   };
 
@@ -178,20 +142,12 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
     }
   }, [activeTabId, activeTab]);
 
-  // Sync external initialUrl prop changes into active browser tab
+  // Sync external initialUrl prop changes
   useEffect(() => {
     if (initialUrl && initialUrl.trim()) {
       const normalized = normalizeUrl(initialUrl);
-      const nextTitle = derivePageTitleFromUrl(normalized);
       if (activeTab && activeTab.url !== normalized) {
         handleNavigate(normalized, true);
-      } else {
-        setTabs((prev) =>
-          prev.map((t) =>
-            t.id === activeTabId && t.title !== nextTitle ? { ...t, title: nextTitle } : t
-          )
-        );
-        setRenderMode(isKnownEmulatorDomain(normalized) ? 'emulator' : 'iframe');
       }
     }
   }, [initialUrl]);
@@ -202,7 +158,7 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
     const newTabObj: BrowserTab = {
       id: newId,
       title: 'Nueva Pestaña',
-      url: 'https://github.com',
+      url: 'https://www.facebook.com',
     };
     setTabs((prev) => [...prev, newTabObj]);
     setActiveTabId(newId);
@@ -210,69 +166,11 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
 
   const handleCloseTab = (idToClose: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (tabs.length === 1) return; // Keep at least one tab
+    if (tabs.length === 1) return;
     const filtered = tabs.filter((t) => t.id !== idToClose);
     setTabs(filtered);
     if (activeTabId === idToClose) {
       setActiveTabId(filtered[filtered.length - 1].id);
-    }
-  };
-
-  // GitHub Commit Action Simulation
-  const handleSimulateGitHubCommit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!githubCommitInput.trim()) return;
-
-    setGithubStatusMsg('Subiendo cambios y ejecutando commit...');
-    setTimeout(() => {
-      setGithubRepo((prev) => ({
-        ...prev,
-        lastCommitMsg: githubCommitInput.trim(),
-        lastCommitTime: 'Justo ahora',
-      }));
-      setGithubStatusMsg(`✅ Commit exitoso: "${githubCommitInput.trim()}" publicado en rama ${githubRepo.branch}`);
-      setGithubCommitInput('');
-      if (onExecuteAgentAction) {
-        onExecuteAgentAction('github_commit', activeTab.url, { message: githubCommitInput });
-      }
-    }, 1200);
-  };
-
-  // WhatsApp Message Action Simulation
-  const handleSendWhatsAppMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!whatsappChatInput.trim()) return;
-
-    const timeStr = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-    const msg = whatsappChatInput.trim();
-
-    setWhatsappMessages((prev) => [...prev, { sender: 'agent', text: msg, time: timeStr }]);
-    setWhatsappChatInput('');
-
-    if (onExecuteAgentAction) {
-      onExecuteAgentAction('whatsapp_send', activeTab.url, { message: msg, phone: whatsappPhone });
-    }
-  };
-
-  // Social Post Action Simulation
-  const handlePublishSocialPost = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!socialPostInput.trim()) return;
-
-    const newPost = {
-      id: `p_${Date.now()}`,
-      author: 'Nexus AI Agent',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
-      content: socialPostInput.trim(),
-      time: 'Justo ahora',
-      likes: 1,
-    };
-
-    setSocialFeed((prev) => [newPost, ...prev]);
-    setSocialPostInput('');
-
-    if (onExecuteAgentAction) {
-      onExecuteAgentAction('social_post', activeTab.url, { post: socialPostInput });
     }
   };
 
@@ -282,19 +180,49 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
     setTimeout(() => setCopiedUrl(false), 3000);
   };
 
+  const handleAddFacebookComment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!facebookCommentText.trim()) return;
+    const newComm = {
+      id: `comm_${Date.now()}`,
+      author: 'Usuario Nexus',
+      text: facebookCommentText.trim(),
+      time: 'Justo ahora',
+    };
+    setFacebookCommentsList((prev) => [newComm, ...prev]);
+    setFacebookCommentText('');
+  };
+
+  // Detect which site simulation to render if blocked or external domain
+  const currentDomain = (activeTab?.url || '').toLowerCase();
+  const isFacebook = currentDomain.includes('facebook.com');
+  const isGoogle = currentDomain.includes('google.com');
+  const isInstagram = currentDomain.includes('instagram.com');
+  const isXTwitter = currentDomain.includes('x.com') || currentDomain.includes('twitter.com');
+  const isGitHub = currentDomain.includes('github.com');
+
   return (
-    <div className="bg-slate-950 border border-cyan-800/60 rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[780px] animate-in fade-in duration-200">
-      
-      {/* WINDOW TITLEBAR & TABS BAR */}
-      <div className="bg-slate-900 border-b border-slate-800 px-4 pt-3 pb-0 flex items-center justify-between gap-3 shrink-0">
-        
-        {/* Left Mac Window Dots + Tabs */}
-        <div className="flex items-center gap-3 overflow-x-auto scrollbar-none">
-          <div className="flex items-center gap-1.5 shrink-0 pr-2">
+    <div
+      className={`rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[820px] transition-all duration-200 border select-none ${
+        browserTheme === 'chrome'
+          ? 'bg-[#202124] border-slate-700'
+          : browserTheme === 'safari'
+          ? 'bg-[#28282b] border-slate-700/80'
+          : browserTheme === 'edge'
+          ? 'bg-[#1b1c1f] border-indigo-900/60'
+          : 'bg-[#18191c] border-rose-950/60'
+      }`}
+    >
+      {/* 1. TOP BAR: BROWSER THEME ENGINE SELECTOR (Chrome, Safari, Edge, Opera) */}
+      <div className="bg-slate-950 border-b border-slate-800/80 px-4 py-2 flex flex-wrap items-center justify-between gap-3 shrink-0">
+        {/* Traffic Light Controls & Engine Buttons */}
+        <div className="flex items-center gap-3">
+          {/* Traffic Lights */}
+          <div className="flex items-center gap-1.5 pr-2">
             <button
               onClick={onClose}
-              className="w-3 h-3 rounded-full bg-rose-500/90 hover:bg-rose-600 transition-colors flex items-center justify-center text-[8px] text-rose-950 font-bold"
-              title="Cerrar ventana"
+              className="w-3 h-3 rounded-full bg-rose-500/90 hover:bg-rose-600 transition-colors flex items-center justify-center text-[8px] text-rose-950 font-bold cursor-pointer"
+              title="Cerrar navegador"
             >
               ✕
             </button>
@@ -302,26 +230,116 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
             <span className="w-3 h-3 rounded-full bg-emerald-500/90 inline-block" />
           </div>
 
-          {/* Browser Tabs List */}
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+          {/* Browser Theme Selector: Chrome | Safari | Edge | Opera */}
+          <div className="flex items-center gap-1 p-1 bg-slate-900 border border-slate-800 rounded-xl text-xs font-bold">
+            <span className="text-[10px] text-slate-400 font-mono px-2 uppercase tracking-wider hidden sm:inline">
+              Navegador:
+            </span>
+
+            {/* Google Chrome */}
+            <button
+              onClick={() => setBrowserTheme('chrome')}
+              className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                browserTheme === 'chrome'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40 font-black'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5 fill-current shrink-0" viewBox="0 0 24 24">
+                <path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm0 18a6 6 0 1 1 0-12 6 6 0 0 1 0 12z" />
+              </svg>
+              <span>Chrome</span>
+            </button>
+
+            {/* Apple Safari */}
+            <button
+              onClick={() => setBrowserTheme('safari')}
+              className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                browserTheme === 'safari'
+                  ? 'bg-cyan-600 text-white shadow-md shadow-cyan-900/40 font-black'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <Compass className="w-3.5 h-3.5 shrink-0" />
+              <span>Safari</span>
+            </button>
+
+            {/* Microsoft Edge */}
+            <button
+              onClick={() => setBrowserTheme('edge')}
+              className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                browserTheme === 'edge'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-900/40 font-black'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <div className="w-3.5 h-3.5 rounded-full bg-gradient-to-tr from-teal-400 to-indigo-500 flex items-center justify-center text-[8px] font-black shrink-0 text-white">
+                e
+              </div>
+              <span>Edge</span>
+            </button>
+
+            {/* Opera */}
+            <button
+              onClick={() => setBrowserTheme('opera')}
+              className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                browserTheme === 'opera'
+                  ? 'bg-rose-600 text-white shadow-md shadow-rose-900/40 font-black'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <span className="w-3.5 h-3.5 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-black shrink-0">
+                O
+              </span>
+              <span>Opera</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Right: Active Agent Indicator Badge */}
+        <div className="flex items-center gap-2 text-xs font-mono">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+          <span className="text-slate-300 font-bold hidden md:inline">{agentName}</span>
+          <span
+            className={`px-2.5 py-0.5 rounded-md font-bold text-[10px] uppercase border ${
+              browserTheme === 'chrome'
+                ? 'bg-blue-950 text-blue-300 border-blue-800'
+                : browserTheme === 'safari'
+                ? 'bg-cyan-950 text-cyan-300 border-cyan-800'
+                : browserTheme === 'edge'
+                ? 'bg-indigo-950 text-indigo-300 border-indigo-800'
+                : 'bg-rose-950 text-rose-300 border-rose-800'
+            }`}
+          >
+            Motor {browserTheme.toUpperCase()}
+          </span>
+        </div>
+      </div>
+
+      {/* 2. ENGINE-SPECIFIC TOOLBAR & OMNIBOX ADDRESS BAR */}
+
+      {/* GOOGLE CHROME THEME UI */}
+      {browserTheme === 'chrome' && (
+        <div className="bg-[#202124] text-slate-200">
+          <div className="px-3 pt-2 flex items-center gap-1 overflow-x-auto scrollbar-none border-b border-[#292a2d]">
             {tabs.map((tab) => {
               const isActive = tab.id === activeTabId;
               return (
                 <div
                   key={tab.id}
                   onClick={() => setActiveTabId(tab.id)}
-                  className={`px-3.5 py-2 rounded-t-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 max-w-[200px] shrink-0 border-t border-x ${
+                  className={`px-4 py-2 rounded-t-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 max-w-[220px] shrink-0 border-t border-x ${
                     isActive
-                      ? 'bg-slate-950 text-white border-cyan-500/60 shadow-md'
-                      : 'bg-slate-900/80 text-slate-400 hover:text-slate-200 border-transparent hover:bg-slate-800/60'
+                      ? 'bg-[#35363a] text-white border-[#4a4d52] shadow-md'
+                      : 'bg-[#202124] text-slate-400 hover:text-slate-200 border-transparent hover:bg-[#292a2d]'
                   }`}
                 >
-                  <Globe className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-cyan-400' : 'text-slate-500'}`} />
+                  <Globe className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-blue-400' : 'text-slate-500'}`} />
                   <span className="truncate text-[11px] font-sans">{tab.title}</span>
                   {tabs.length > 1 && (
                     <button
                       onClick={(e) => handleCloseTab(tab.id, e)}
-                      className="p-0.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                      className="p-0.5 rounded-full hover:bg-slate-700 text-slate-400 hover:text-white"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -329,235 +347,576 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
                 </div>
               );
             })}
-
             <button
               onClick={handleCreateNewTab}
-              className="p-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition-colors shrink-0"
-              title="Nueva Pestaña"
+              className="p-1.5 rounded-xl hover:bg-[#35363a] text-slate-400 hover:text-white shrink-0 ml-1"
+              title="Nueva Pestaña en Chrome"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-4 h-4" />
             </button>
           </div>
-        </div>
 
-        {/* Right Active Agent Indicator */}
-        <div className="flex items-center gap-2 text-xs font-mono shrink-0 pl-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span className="text-cyan-400 font-bold hidden md:inline">{agentName}</span>
-          <span className="px-2 py-0.5 rounded-md bg-purple-950 text-purple-300 border border-purple-800 text-[10px]">
-            Navegador IA
-          </span>
-        </div>
-      </div>
-
-      {/* ADDRESS TOOLBAR & QUICK BOOKMARKS */}
-      <div className="bg-slate-900/90 border-b border-slate-800 p-3 space-y-2 shrink-0">
-        
-        {/* Navigation & Address Bar Line */}
-        <div className="flex items-center gap-2">
-          
-          {/* Back Button */}
-          <button
-            onClick={() => {
-              if (historyIndex > 0) {
-                const newIndex = historyIndex - 1;
-                setHistoryIndex(newIndex);
-                handleNavigate(historyStack[newIndex]);
-              }
-            }}
-            disabled={historyIndex <= 0}
-            className="p-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 disabled:opacity-40 transition-colors"
-            title="Atrás"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Forward Button */}
-          <button
-            onClick={() => {
-              if (historyIndex < historyStack.length - 1) {
-                const newIndex = historyIndex + 1;
-                setHistoryIndex(newIndex);
-                handleNavigate(historyStack[newIndex]);
-              }
-            }}
-            disabled={historyIndex >= historyStack.length - 1}
-            className="p-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 disabled:opacity-40 transition-colors"
-            title="Adelante"
-          >
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Reload Button */}
-          <button
-            onClick={() => handleNavigate(activeTab.url)}
-            className="p-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
-            title="Recargar página"
-          >
-            <RotateCw className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Home Button */}
-          <button
-            onClick={() => handleNavigate('https://web.whatsapp.com')}
-            className="p-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
-            title="Página principal"
-          >
-            <Home className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Address Input Form */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleNavigate(urlInput);
-            }}
-            className="flex-1 flex items-center gap-2 bg-slate-950 border border-slate-800 focus-within:border-cyan-500 rounded-xl px-3 py-1.5 transition-all shadow-inner"
-          >
-            <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <input
-              type="text"
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              placeholder="Ingresa cualquier URL (ej: web.whatsapp.com, github.com, facebook.com)..."
-              className="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
-            />
-
+          <div className="p-2.5 bg-[#292a2d] border-b border-[#171717] flex items-center gap-2 text-xs">
             <button
-              type="button"
-              onClick={copyCurrentUrl}
-              className="p-1 text-slate-400 hover:text-white rounded transition-colors shrink-0"
-              title="Copiar URL"
+              onClick={() => historyIndex > 0 && handleNavigate(historyStack[historyIndex - 1])}
+              disabled={historyIndex <= 0}
+              className="p-1.5 rounded-full hover:bg-slate-700 text-slate-300 disabled:opacity-30"
+              title="Atrás"
             >
-              {copiedUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => historyIndex < historyStack.length - 1 && handleNavigate(historyStack[historyIndex + 1])}
+              disabled={historyIndex >= historyStack.length - 1}
+              className="p-1.5 rounded-full hover:bg-slate-700 text-slate-300 disabled:opacity-30"
+              title="Adelante"
+            >
+              <ArrowRight className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => handleNavigate(activeTab.url)}
+              className="p-1.5 rounded-full hover:bg-slate-700 text-slate-300"
+              title="Recargar"
+            >
+              <RotateCw className="w-4 h-4" />
             </button>
 
-            <button
-              type="submit"
-              className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-[11px] rounded-lg transition-colors shrink-0 cursor-pointer"
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleNavigate(urlInput);
+              }}
+              className="flex-1 flex items-center gap-2 bg-[#202124] border border-[#3c4043] focus-within:border-blue-500 rounded-full px-4 py-1.5 shadow-inner"
             >
-              Ir
-            </button>
-          </form>
+              <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <input
+                type="text"
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                placeholder="Escribe una URL (ej. www.facebook.com o https://google.com)..."
+                className="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+              />
+              <button
+                type="button"
+                onClick={copyCurrentUrl}
+                className="text-slate-400 hover:text-white"
+                title="Copiar URL"
+              >
+                {copiedUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            </form>
 
-          {/* Render Mode Switcher Toggle */}
-          <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 shrink-0 text-[11px] font-bold">
-            <button
-              onClick={() => setRenderMode('emulator')}
-              className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 ${
-                renderMode === 'emulator'
-                  ? 'bg-gradient-to-r from-cyan-600 to-purple-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+            <a
+              href={activeTab.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-full flex items-center gap-1 text-[11px] shrink-0"
             >
-              <Sparkles className="w-3 h-3 text-amber-300" />
-              <span>Emulador IA</span>
-            </button>
-
-            <button
-              onClick={() => setRenderMode('iframe')}
-              className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 ${
-                renderMode === 'iframe'
-                  ? 'bg-slate-800 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Monitor className="w-3 h-3" />
-              <span>iFrame Directo</span>
-            </button>
+              <span>Abrir Chrome</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
           </div>
         </div>
+      )}
 
-        {/* Quick Bookmarks Shortcuts Bar */}
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none text-[11px] font-sans pt-1">
-          <span className="text-slate-500 font-mono flex items-center gap-1 shrink-0">
-            <Bookmark className="w-3 h-3 text-purple-400" /> Accesos Rápidos:
-          </span>
-
-          <button
-            onClick={() => handleNavigate('https://web.whatsapp.com')}
-            className="px-2.5 py-1 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/80 rounded-lg flex items-center gap-1.5 transition-colors shrink-0 font-semibold cursor-pointer"
-          >
-            <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-            <span>WhatsApp Web</span>
-          </button>
-
-          <button
-            onClick={() => handleNavigate('https://github.com/nexuswebstudio/nexus-platform-v2')}
-            className="px-2.5 py-1 bg-slate-950 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-lg flex items-center gap-1.5 transition-colors shrink-0 font-semibold cursor-pointer"
-          >
-            <Code className="w-3.5 h-3.5 text-purple-400" />
-            <span>GitHub Repositorios</span>
-          </button>
-
-          <button
-            onClick={() => handleNavigate('https://facebook.com')}
-            className="px-2.5 py-1 bg-blue-950/80 hover:bg-blue-900 text-blue-300 border border-blue-800/80 rounded-lg flex items-center gap-1.5 transition-colors shrink-0 font-semibold cursor-pointer"
-          >
-            <Share2 className="w-3.5 h-3.5 text-blue-400" />
-            <span>Facebook</span>
-          </button>
-
-          <button
-            onClick={() => handleNavigate('https://linkedin.com')}
-            className="px-2.5 py-1 bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border border-cyan-800/80 rounded-lg flex items-center gap-1.5 transition-colors shrink-0 font-semibold cursor-pointer"
-          >
-            <User className="w-3.5 h-3.5 text-cyan-400" />
-            <span>LinkedIn</span>
-          </button>
-
-          <button
-            onClick={() => handleNavigate('https://x.com')}
-            className="px-2.5 py-1 bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg flex items-center gap-1.5 transition-colors shrink-0 font-semibold cursor-pointer"
-          >
-            <Globe className="w-3.5 h-3.5 text-slate-300" />
-            <span>X / Twitter</span>
-          </button>
-
-          <button
-            onClick={() => handleNavigate('https://google.com')}
-            className="px-2.5 py-1 bg-slate-950 hover:bg-slate-800 text-amber-300 border border-slate-800 rounded-lg flex items-center gap-1.5 transition-colors shrink-0 font-semibold cursor-pointer"
-          >
-            <Search className="w-3.5 h-3.5 text-amber-400" />
-            <span>Google Search</span>
-          </button>
-        </div>
-      </div>
-
-      {/* BROWSER VIEWPORT & INTERACTIVE AGENT ENGINE */}
-      <div className="flex-1 bg-slate-950 overflow-hidden relative flex flex-col">
-        
-        {renderMode === 'iframe' ? (
-          /* DIRECT IFRAME MODE */
-          <div className="w-full h-full relative flex flex-col">
-            <div className="bg-slate-900/95 border-b border-slate-800 px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-[11px] shrink-0">
-              <div className="flex items-center gap-2 text-slate-300 font-mono truncate">
-                <Globe className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                <span className="truncate">
-                  Navegando en: <strong className="text-white">{activeTab.url}</strong>
-                </span>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setRenderMode('emulator')}
-                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-300 font-semibold rounded-lg border border-slate-700 transition-colors cursor-pointer"
-                >
-                  Cambiar a Inspector IA
-                </button>
-                <a
-                  href={activeTab.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-2.5 py-1 bg-cyan-950 hover:bg-cyan-900 text-cyan-300 font-semibold rounded-lg border border-cyan-800 flex items-center gap-1 transition-colors"
-                >
-                  <span>Abrir externo</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
+      {/* APPLE SAFARI THEME UI */}
+      {browserTheme === 'safari' && (
+        <div className="bg-[#28282b] text-slate-200">
+          <div className="p-3 bg-[#1e1e20] border-b border-[#36363a] flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => historyIndex > 0 && handleNavigate(historyStack[historyIndex - 1])}
+                disabled={historyIndex <= 0}
+                className="p-1.5 rounded-lg hover:bg-[#36363a] text-slate-300 disabled:opacity-30"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => historyIndex < historyStack.length - 1 && handleNavigate(historyStack[historyIndex + 1])}
+                disabled={historyIndex >= historyStack.length - 1}
+                className="p-1.5 rounded-lg hover:bg-[#36363a] text-slate-300 disabled:opacity-30"
+              >
+                <ArrowRight className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => handleNavigate(activeTab.url)}
+                className="p-1.5 rounded-lg hover:bg-[#36363a] text-slate-300"
+              >
+                <RotateCw className="w-4 h-4" />
+              </button>
             </div>
 
-            <div className="flex-1 relative">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleNavigate(urlInput);
+              }}
+              className="flex-1 max-w-xl flex items-center gap-2 bg-[#121214] border border-[#3a3a3d] focus-within:border-cyan-500 rounded-xl px-4 py-1.5 mx-auto"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+              <input
+                type="text"
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                className="w-full bg-transparent text-xs text-white text-center focus:text-left focus:outline-none font-mono"
+              />
+              <button type="button" onClick={copyCurrentUrl} className="text-slate-400 hover:text-white">
+                {copiedUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            </form>
+
+            <div className="flex items-center gap-2">
+              <button onClick={handleCreateNewTab} className="p-1.5 rounded-lg hover:bg-[#36363a] text-slate-300">
+                <Plus className="w-4 h-4" />
+              </button>
+              <a
+                href={activeTab.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl flex items-center gap-1 text-[11px] shrink-0"
+              >
+                <span>Pestaña Safari</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MICROSOFT EDGE THEME UI */}
+      {browserTheme === 'edge' && (
+        <div className="bg-[#1b1c1f] text-slate-200">
+          <div className="p-2.5 bg-[#141517] border-b border-indigo-950/80 flex items-center gap-2 text-xs">
+            <div className="p-1 bg-indigo-950 border border-indigo-700 rounded-lg text-indigo-300 shrink-0 flex items-center gap-1">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="text-[10px] font-mono font-bold">Bing Copilot</span>
+            </div>
+
+            <button
+              onClick={() => historyIndex > 0 && handleNavigate(historyStack[historyIndex - 1])}
+              disabled={historyIndex <= 0}
+              className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 disabled:opacity-30"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => historyIndex < historyStack.length - 1 && handleNavigate(historyStack[historyIndex + 1])}
+              disabled={historyIndex >= historyStack.length - 1}
+              className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 disabled:opacity-30"
+            >
+              <ArrowRight className="w-4 h-4" />
+            </button>
+            <button onClick={() => handleNavigate(activeTab.url)} className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300">
+              <RotateCw className="w-4 h-4" />
+            </button>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleNavigate(urlInput);
+              }}
+              className="flex-1 flex items-center gap-2 bg-[#232428] border border-indigo-900/60 focus-within:border-indigo-500 rounded-xl px-4 py-1.5"
+            >
+              <Lock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+              <input
+                type="text"
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                className="w-full bg-transparent text-xs text-white focus:outline-none font-mono"
+              />
+              <button type="button" onClick={copyCurrentUrl} className="text-slate-400 hover:text-white">
+                {copiedUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            </form>
+
+            <a
+              href={activeTab.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl flex items-center gap-1 text-[11px] shrink-0"
+            >
+              <span>Abrir Edge</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* OPERA THEME UI */}
+      {browserTheme === 'opera' && (
+        <div className="bg-[#18191c] text-slate-200">
+          <div className="p-2.5 bg-[#101113] border-b border-rose-950/80 flex items-center gap-2 text-xs">
+            <div className="w-6 h-6 rounded-full bg-rose-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-md shadow-rose-900/50">
+              O
+            </div>
+
+            <button
+              onClick={() => historyIndex > 0 && handleNavigate(historyStack[historyIndex - 1])}
+              disabled={historyIndex <= 0}
+              className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 disabled:opacity-30"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => historyIndex < historyStack.length - 1 && handleNavigate(historyStack[historyIndex + 1])}
+              disabled={historyIndex >= historyStack.length - 1}
+              className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 disabled:opacity-30"
+            >
+              <ArrowRight className="w-4 h-4" />
+            </button>
+
+            <button onClick={() => handleNavigate(activeTab.url)} className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300">
+              <RotateCw className="w-4 h-4" />
+            </button>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleNavigate(urlInput);
+              }}
+              className="flex-1 flex items-center gap-2 bg-[#1f2024] border border-rose-900/60 focus-within:border-rose-500 rounded-xl px-4 py-1.5"
+            >
+              <Search className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+              <input
+                type="text"
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                className="w-full bg-transparent text-xs text-white focus:outline-none font-mono"
+              />
+              <button type="button" onClick={copyCurrentUrl} className="text-slate-400 hover:text-white">
+                {copiedUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            </form>
+
+            <a
+              href={activeTab.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl flex items-center gap-1 text-[11px] shrink-0"
+            >
+              <span>Abrir Opera</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* QUICK BOOKMARKS BAR */}
+      <div className="bg-slate-950 px-3 py-1.5 border-b border-slate-800 flex items-center gap-2 overflow-x-auto scrollbar-none text-[11px]">
+        <span className="text-slate-500 font-mono flex items-center gap-1 shrink-0">
+          <Bookmark className="w-3 h-3 text-cyan-400" /> Accesos Rápidos:
+        </span>
+
+        {[
+          { name: 'Facebook', url: 'https://www.facebook.com/profile.php?id=61593046477590' },
+          { name: 'Nexus Web Studio', url: 'https://nexuswebstudio.dev' },
+          { name: 'Google Search', url: 'https://google.com' },
+          { name: 'Instagram', url: 'https://instagram.com/nexuswebstudio' },
+          { name: 'GitHub', url: 'https://github.com/nexuswebstudio/nexus-platform-v2' },
+          { name: 'WhatsApp Web', url: 'https://web.whatsapp.com' },
+        ].map((b) => (
+          <button
+            key={b.name}
+            onClick={() => handleNavigate(b.url)}
+            className="px-2.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-[11px] font-mono shrink-0 cursor-pointer"
+          >
+            {b.name}
+          </button>
+        ))}
+      </div>
+
+      {/* 3. MAIN WEBPAGE VIEWPORT CONTAINER */}
+      <div className="flex-1 bg-slate-950 relative flex flex-col overflow-hidden">
+        {/* URL Status Bar */}
+        <div className="bg-slate-900 text-slate-300 px-4 py-2 border-b border-slate-800 flex items-center justify-between gap-2 text-xs shrink-0 font-mono">
+          <div className="flex items-center gap-2 truncate">
+            <Globe className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            <span className="truncate">
+              Sitio en {browserTheme.toUpperCase()}: <strong className="text-white">{activeTab.url}</strong>
+            </span>
+          </div>
+
+          <a
+            href={activeTab.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg flex items-center gap-1 shrink-0 font-bold"
+          >
+            <span>Abrir en Pestaña Directa</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+
+        {/* VIEWPORT CONTENT (Simulated Interactive Web View or Live iframe) */}
+        <div className="flex-1 relative bg-slate-950 overflow-y-auto font-sans">
+          
+          {/* SPECIAL INTERACTIVE SIMULATED VIEW FOR FACEBOOK */}
+          {isFacebook ? (
+            <div className="bg-[#18191a] text-slate-100 min-h-full p-4 space-y-4 animate-in fade-in duration-200">
+              {/* Facebook Top Navigation Header */}
+              <div className="bg-[#242526] border border-[#393a3b] rounded-2xl p-3 flex items-center justify-between gap-3 shadow-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-600 text-white font-black text-xl flex items-center justify-center shadow-md">
+                    f
+                  </div>
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      readOnly
+                      value="Nexus Web Studio"
+                      className="bg-[#3a3b3c] text-white rounded-full pl-9 pr-4 py-1.5 text-xs font-sans w-48 sm:w-64 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="hidden sm:flex items-center gap-6 text-slate-400">
+                  <div className="p-2 border-b-2 border-blue-500 text-blue-500 cursor-pointer">
+                    <Home className="w-5 h-5" />
+                  </div>
+                  <div className="p-2 hover:bg-[#3a3b3c] rounded-xl cursor-pointer">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div className="p-2 hover:bg-[#3a3b3c] rounded-xl cursor-pointer">
+                    <Grid className="w-5 h-5" />
+                  </div>
+                  <div className="p-2 hover:bg-[#3a3b3c] rounded-xl cursor-pointer">
+                    <Bell className="w-5 h-5" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Official Facebook Page Profile Cover Header Card */}
+              <div className="bg-[#242526] border border-[#393a3b] rounded-3xl overflow-hidden shadow-2xl">
+                {/* Banner Cover */}
+                <div className="h-44 bg-gradient-to-r from-blue-900 via-indigo-900 to-purple-900 relative p-4 flex items-end justify-between">
+                  <span className="px-3 py-1 bg-black/60 backdrop-blur-md rounded-lg text-[10px] font-mono text-cyan-300 font-bold border border-cyan-500/30">
+                    Página Oficial de Facebook
+                  </span>
+                </div>
+
+                {/* Profile Avatar & Info */}
+                <div className="p-6 relative pt-0">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 -mt-12 mb-4">
+                    <div className="flex items-end gap-4">
+                      <div className="w-24 h-24 rounded-2xl border-4 border-[#242526] bg-white overflow-hidden p-1 shadow-2xl">
+                        <img
+                          src={OFFICIAL_NEXUS_LOGO}
+                          alt="Nexus Web Studio Facebook"
+                          className="w-full h-full object-contain rounded-xl"
+                        />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                          <span>Nexus Web Studio</span>
+                          <span className="w-4 h-4 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center">
+                            ✓
+                          </span>
+                        </h2>
+                        <p className="text-xs text-slate-400 font-mono">@nexuswebstudio • 1.2K Me gusta • 1.5K Seguidores</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setFacebookLiked((prev) => !prev);
+                          setFacebookLikesCount((prev) => (facebookLiked ? prev - 1 : prev + 1));
+                        }}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                          facebookLiked
+                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50'
+                            : 'bg-[#3a3b3c] text-slate-200 hover:bg-[#4e4f50]'
+                        }`}
+                      >
+                        <ThumbsUp className="w-4 h-4" />
+                        <span>{facebookLiked ? 'Te gusta' : 'Me gusta'}</span>
+                      </button>
+
+                      <a
+                        href="https://api.whatsapp.com/send?phone=573043470984&text=Hola%20Nexus%20Web%20Studio!%20Vengo%20desde%20Facebook."
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-lg"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        <span>Enviar mensaje</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-300 leading-relaxed border-t border-[#393a3b] pt-3">
+                    🚀 <strong>Nexus Web Studio</strong> | Agencia Especializada en Desarrollo Web, Software de Gestión Corporativa y Agentes Autónomos de Inteligencia Artificial 24/7.
+                  </p>
+                </div>
+              </div>
+
+              {/* Facebook Posts Feed Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                {/* Main Feed Column */}
+                <div className="lg:col-span-8 space-y-4">
+                  {/* Create Post Card */}
+                  <div className="bg-[#242526] border border-[#393a3b] rounded-2xl p-4 space-y-3 shadow-lg">
+                    <form onSubmit={handleAddFacebookComment} className="space-y-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-purple-600 text-white font-bold flex items-center justify-center text-xs">
+                          N
+                        </div>
+                        <input
+                          type="text"
+                          value={facebookCommentText}
+                          onChange={(e) => setFacebookCommentText(e.target.value)}
+                          placeholder="¿Qué piensas de la plataforma Nexus Web Studio?"
+                          className="flex-1 bg-[#3a3b3c] border border-transparent focus:border-blue-500 rounded-full px-4 py-2 text-xs text-white placeholder-slate-400 focus:outline-none"
+                        />
+                        <button
+                          type="submit"
+                          className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Comentar</span>
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Facebook Post 1 */}
+                  <div className="bg-[#242526] border border-[#393a3b] rounded-2xl p-4 space-y-3 shadow-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={OFFICIAL_NEXUS_LOGO}
+                          alt="Nexus Logo"
+                          className="w-10 h-10 rounded-full border border-blue-500/50 p-0.5 bg-white object-contain"
+                        />
+                        <div>
+                          <p className="text-xs font-bold text-white flex items-center gap-1">
+                            <span>Nexus Web Studio</span>
+                            <span className="text-blue-400 text-[10px]">✓</span>
+                          </p>
+                          <p className="text-[10px] text-slate-400 font-mono">Publicado hace 2 horas • 🌎 Público</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-slate-200 leading-relaxed">
+                      🔥 ¡Presentamos nuestro nuevo sistema de <strong>Agentes de Navegación Autónomos</strong>! Ahora puedes visualizar e interactuar en sitios web externos (Facebook, GitHub, Google) en tiempo real con emulación multinavegador en Google Chrome, Apple Safari, Microsoft Edge y Opera. 🌐✨
+                    </p>
+
+                    <div className="bg-[#18191a] border border-[#393a3b] rounded-xl p-4 text-xs space-y-2">
+                      <div className="flex items-center gap-2 text-cyan-400 font-mono font-bold text-[11px]">
+                        <Globe className="w-4 h-4" />
+                        <span>Visualización activa en {browserTheme.toUpperCase()}</span>
+                      </div>
+                      <p className="text-slate-300">
+                        Navega fluido, ejecuta prompts inteligentes y gestiona tus sitios desde la plataforma de Nexus.
+                      </p>
+                    </div>
+
+                    {/* Post Reactions & Metrics */}
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 border-t border-b border-[#393a3b] py-2">
+                      <span className="flex items-center gap-1">
+                        <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-bold">
+                          👍
+                        </span>
+                        <strong className="text-slate-200">{facebookLikesCount}</strong> Me gusta
+                      </span>
+                      <span>{facebookCommentsList.length} comentarios • 42 compartidos</span>
+                    </div>
+
+                    {/* Comments Feed */}
+                    <div className="space-y-2 pt-2">
+                      {facebookCommentsList.map((comm) => (
+                        <div key={comm.id} className="flex items-start gap-2.5 text-xs">
+                          <div className="w-7 h-7 rounded-full bg-slate-700 text-slate-200 font-bold text-[10px] flex items-center justify-center shrink-0">
+                            {comm.author.charAt(0)}
+                          </div>
+                          <div className="bg-[#3a3b3c] p-2.5 rounded-2xl flex-1 text-slate-200">
+                            <p className="font-bold text-white text-[11px]">{comm.author}</p>
+                            <p className="text-slate-300 mt-0.5">{comm.text}</p>
+                            <span className="text-[9px] text-slate-400 font-mono block mt-1">{comm.time}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Sidebar Column */}
+                <div className="lg:col-span-4 space-y-4">
+                  <div className="bg-[#242526] border border-[#393a3b] rounded-2xl p-4 space-y-3 shadow-lg text-xs">
+                    <h4 className="font-bold text-white border-b border-[#393a3b] pb-2">Información de Contacto</h4>
+                    <div className="space-y-2 text-slate-300">
+                      <p className="flex items-center gap-2">
+                        <Globe className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                        <span className="font-mono text-[11px]">nexuswebstudio.dev</span>
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <MessageCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span className="font-mono text-[11px]">+57 304 347 0984</span>
+                      </p>
+                    </div>
+
+                    <a
+                      href="https://www.facebook.com/profile.php?id=61593046477590"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 text-xs transition-all shadow-md mt-2"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      <span>Abrir Facebook Oficial</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : isGoogle ? (
+            /* SPECIAL SIMULATED VIEW FOR GOOGLE SEARCH */
+            <div className="bg-[#202124] text-slate-100 min-h-full p-6 space-y-6">
+              <div className="max-w-2xl mx-auto space-y-4 text-center pt-6">
+                <h1 className="text-4xl font-bold tracking-tight text-white flex items-center justify-center gap-2">
+                  <span className="text-blue-500">G</span>
+                  <span className="text-red-500">o</span>
+                  <span className="text-amber-500">o</span>
+                  <span className="text-blue-500">g</span>
+                  <span className="text-green-500">l</span>
+                  <span className="text-red-500">e</span>
+                </h1>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleNavigate(urlInput);
+                  }}
+                  className="flex items-center gap-3 bg-[#303134] border border-[#5f6368] rounded-full px-5 py-3 shadow-lg"
+                >
+                  <Search className="w-5 h-5 text-slate-400 shrink-0" />
+                  <input
+                    type="text"
+                    value={urlInput}
+                    onChange={(e) => setUrlInput(e.target.value)}
+                    placeholder="Buscar en Google o escribir URL..."
+                    className="w-full bg-transparent text-sm text-white focus:outline-none"
+                  />
+                </form>
+              </div>
+
+              {/* Google Results */}
+              <div className="max-w-3xl mx-auto space-y-4 pt-4">
+                <div className="bg-[#303134] p-4 rounded-2xl border border-slate-700 space-y-1">
+                  <span className="text-xs text-slate-400 font-mono block">https://nexuswebstudio.dev</span>
+                  <h3 className="text-base font-bold text-blue-400 hover:underline">
+                    Nexus Web Studio | Desarrollo de Software & Agentes de IA 24/7
+                  </h3>
+                  <p className="text-xs text-slate-300">
+                    Soluciones web de alto rendimiento, sistemas de gestión para empresas y agentes autónomos inteligentes integrados.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* DEFAULT LIVE IFRAME VIEWPORT WITH FALLBACK OVERLAY */
+            <div className="w-full h-full relative">
               <iframe
                 key={activeTab.url}
                 src={activeTab.url}
@@ -570,280 +929,25 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
               {iframeError && (
                 <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center space-y-4">
                   <AlertTriangle className="w-12 h-12 text-amber-400 animate-pulse" />
-                  <h3 className="text-base font-bold text-white">Protección X-Frame-Options Detectada</h3>
+                  <h3 className="text-base font-bold text-white">Seguridad X-Frame-Options / CSP Activa</h3>
                   <p className="text-xs text-slate-300 max-w-md leading-relaxed">
-                    El sitio web <code className="text-cyan-400 font-mono">{activeTab.url}</code> restringe la incrustación en iFrames directos por políticas de seguridad CSP de dominio externo.
+                    El sitio web <code className="text-cyan-400 font-mono">{activeTab.url}</code> restringe la incrustación directa en marcos. Puedes abrirlo directamente en una pestaña independiente del navegador {browserTheme.toUpperCase()}.
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => setRenderMode('emulator')}
-                    className="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-purple-600 text-white font-bold text-xs rounded-xl shadow-lg flex items-center gap-2 cursor-pointer"
+                  <a
+                    href={activeTab.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-xs rounded-xl shadow-lg flex items-center gap-2"
                   >
-                    <Sparkles className="w-4 h-4 text-amber-300" />
-                    <span>Cambiar a Emulador Visual IA Interactivo</span>
-                  </button>
+                    <ExternalLink className="w-4 h-4" />
+                    <span>Abrir {activeTab.url} en Pestaña Directa ({browserTheme.toUpperCase()})</span>
+                  </a>
                 </div>
               )}
             </div>
-          </div>
-        ) : (
-          /* AI EMULATOR INTERACTIVE MODE */
-          <div className="w-full h-full overflow-y-auto bg-[#0b141a] text-slate-100 font-sans p-6 flex flex-col items-center justify-start">
-            
-            {/* 1. WHATSAPP WEB EMULATOR VIEW */}
-            {activeTab.url.includes('whatsapp.com') && (
-              <div className="w-full max-w-4xl bg-[#111b21] rounded-3xl border border-slate-800 p-6 shadow-2xl space-y-6">
-                <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-                  <div className="flex items-center gap-3">
-                    <div className="p-3 bg-emerald-950 border border-emerald-700 rounded-2xl text-emerald-400">
-                      <MessageSquare className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-bold text-white flex items-center gap-2">
-                        <span>WhatsApp Web Business - Agente IA Vinculado</span>
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                      </h3>
-                      <p className="text-xs text-emerald-400 font-mono">
-                        Sesión activa para {whatsappPhone} (Protocolo Baileys Socket)
-                      </p>
-                    </div>
-                  </div>
-
-                  <span className="text-xs font-mono text-slate-300 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
-                    🟢 En línea 24/7
-                  </span>
-                </div>
-
-                {/* WhatsApp Chat Log Feed */}
-                <div className="bg-[#0b141a] border border-slate-800 rounded-2xl p-4 space-y-3 max-h-[350px] overflow-y-auto font-sans">
-                  {whatsappMessages.map((m, idx) => (
-                    <div key={idx} className={`flex flex-col ${m.sender === 'user' ? 'items-end' : m.sender === 'agent' ? 'items-start' : 'items-center'}`}>
-                      {m.sender === 'system' ? (
-                        <span className="text-[10px] font-mono px-3 py-1 bg-slate-900 text-slate-400 rounded-full border border-slate-800 my-1">
-                          {m.text}
-                        </span>
-                      ) : (
-                        <div className={`max-w-lg p-3.5 rounded-2xl text-xs leading-relaxed ${
-                          m.sender === 'user' ? 'bg-[#005c4b] text-white rounded-br-none shadow-md' : 'bg-[#202c33] text-slate-100 rounded-bl-none border border-slate-700/50 shadow-md'
-                        }`}>
-                          <p>{m.text}</p>
-                          <span className="text-[9px] text-slate-400 font-mono block text-right mt-1">{m.time}</span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {/* WhatsApp Send Form */}
-                <form onSubmit={handleSendWhatsAppMessage} className="flex gap-2">
-                  <input
-                    type="text"
-                    value={whatsappChatInput}
-                    onChange={(e) => setWhatsappChatInput(e.target.value)}
-                    placeholder="Escribe un mensaje de WhatsApp para enviar desde este agente..."
-                    className="flex-1 bg-[#202c33] border border-slate-700/60 rounded-xl px-4 py-3 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500 font-sans"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!whatsappChatInput.trim()}
-                    className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    <Send className="w-4 h-4" />
-                    <span>Enviar WhatsApp</span>
-                  </button>
-                </form>
-              </div>
-            )}
-
-            {/* 2. GITHUB REPOSITORIES EMULATOR VIEW */}
-            {activeTab.url.includes('github.com') && (
-              <div className="w-full max-w-4xl bg-slate-900 rounded-3xl border border-slate-800 p-6 shadow-2xl space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-                  <div className="flex items-center gap-3">
-                    <div className="p-3 bg-purple-950 border border-purple-800 rounded-2xl text-purple-400">
-                      <Code className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-bold text-white flex items-center gap-2">
-                        <span>{githubRepo.owner} / {githubRepo.name}</span>
-                        <span className="text-xs font-mono text-purple-300 bg-purple-950 px-2.5 py-0.5 rounded-full border border-purple-800">
-                          Public
-                        </span>
-                      </h3>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        Repositorio vinculado al Agente de IA para refactorización y commits automáticos
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 font-mono text-xs text-slate-300">
-                    <span className="px-3 py-1 bg-slate-950 rounded-xl border border-slate-800 flex items-center gap-1">
-                      <GitBranch className="w-3.5 h-3.5 text-cyan-400" /> {githubRepo.branch}
-                    </span>
-                    <span className="px-3 py-1 bg-slate-950 rounded-xl border border-slate-800">
-                      ⭐ {githubRepo.stars} stars
-                    </span>
-                  </div>
-                </div>
-
-                {/* Commit Form */}
-                <form onSubmit={handleSimulateGitHubCommit} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
-                      <GitBranch className="w-4 h-4 text-purple-400" /> Ejecutar Commit & Push con Agente de IA:
-                    </label>
-                    <span className="text-[10px] text-slate-500 font-mono">Rama: {githubRepo.branch}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      required
-                      value={githubCommitInput}
-                      onChange={(e) => setGithubCommitInput(e.target.value)}
-                      placeholder="Ej: feat: refactor React components and optimize PostgreSQL queries..."
-                      className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
-                    />
-                    <button
-                      type="submit"
-                      className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg flex items-center gap-2 transition-all cursor-pointer"
-                    >
-                      <GitBranch className="w-4 h-4" />
-                      <span>Commit & Push</span>
-                    </button>
-                  </div>
-                  {githubStatusMsg && (
-                    <p className="text-xs text-emerald-400 font-mono pt-1 animate-in fade-in">
-                      {githubStatusMsg}
-                    </p>
-                  )}
-                </form>
-
-                {/* File Tree List */}
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase font-mono">Archivos del Proyecto:</h4>
-                  <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden text-xs divide-y divide-slate-800/60 font-mono">
-                    {githubRepo.files.map((f, idx) => (
-                      <div key={idx} className="p-3.5 flex items-center justify-between hover:bg-slate-900/60 transition-colors">
-                        <div className="flex items-center gap-2.5 text-slate-200 font-semibold">
-                          <FileCode className="w-4 h-4 text-cyan-400" />
-                          <span>{f.name}</span>
-                        </div>
-                        <span className="text-[11px] text-slate-500">{f.size}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* 3. SOCIAL MEDIA EMULATOR VIEW (Facebook / Instagram / LinkedIn / Twitter) */}
-            {(activeTab.url.includes('facebook.com') ||
-              activeTab.url.includes('linkedin.com') ||
-              activeTab.url.includes('x.com') ||
-              activeTab.url.includes('twitter.com') ||
-              activeTab.url.includes('instagram.com')) && (
-              <div className="w-full max-w-2xl bg-slate-900 rounded-3xl border border-slate-800 p-6 shadow-2xl space-y-5">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                  <div className="flex items-center gap-3">
-                    <div className="p-3 bg-blue-950 border border-blue-800 rounded-2xl text-blue-400">
-                      <Share2 className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-bold text-white">Perfil Social & Gestión de Redes</h3>
-                      <p className="text-xs text-blue-400 font-mono">{activeTab.url}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Post Creator */}
-                <form onSubmit={handlePublishSocialPost} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
-                  <label className="text-xs font-bold text-slate-200 block">
-                    Publicar Novedad o Respuesta Automática en Redes:
-                  </label>
-                  <textarea
-                    rows={3}
-                    required
-                    value={socialPostInput}
-                    onChange={(e) => setSocialPostInput(e.target.value)}
-                    placeholder="Escribe la publicación para publicar desde la cuenta del negocio..."
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-blue-500 font-sans"
-                  />
-                  <div className="flex justify-end">
-                    <button
-                      type="submit"
-                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-lg flex items-center gap-2 cursor-pointer"
-                    >
-                      <Share2 className="w-4 h-4" />
-                      <span>Publicar en Red Social</span>
-                    </button>
-                  </div>
-                </form>
-
-                {/* Social Feed List */}
-                <div className="space-y-3 pt-2">
-                  <h4 className="text-xs font-bold text-slate-400 font-mono">Publicaciones del Perfil:</h4>
-                  {socialFeed.map((post) => (
-                    <div key={post.id} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-white">{post.author}</span>
-                        <span className="text-[10px] text-slate-500 font-mono">{post.time}</span>
-                      </div>
-                      <p className="text-xs text-slate-200 leading-relaxed">{post.content}</p>
-                      <div className="flex items-center gap-3 text-[11px] text-slate-400 pt-1">
-                        <span className="flex items-center gap-1 text-blue-400 font-bold">
-                          <ThumbsUp className="w-3.5 h-3.5" /> {post.likes} Me gusta
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* 4. GENERIC WEB PAGE EMULATOR VIEW */}
-            {!activeTab.url.includes('whatsapp.com') &&
-              !activeTab.url.includes('github.com') &&
-              !activeTab.url.includes('facebook.com') &&
-              !activeTab.url.includes('linkedin.com') &&
-              !activeTab.url.includes('x.com') &&
-              !activeTab.url.includes('twitter.com') &&
-              !activeTab.url.includes('instagram.com') && (
-                <div className="w-full max-w-3xl bg-slate-900 rounded-3xl border border-slate-800 p-8 shadow-2xl text-center space-y-5 my-auto">
-                  <div className="p-4 bg-cyan-950 border border-cyan-800 rounded-2xl text-cyan-400 w-max mx-auto">
-                    <Globe className="w-8 h-8" />
-                  </div>
-                  <div className="space-y-1">
-                    <h3 className="text-lg font-bold text-white">Navegando en {activeTab.url}</h3>
-                    <p className="text-xs text-slate-400 font-mono">
-                      Agente <strong className="text-cyan-400">{agentName}</strong> conectado e inspeccionando la página
-                    </p>
-                  </div>
-
-                  <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 text-xs text-slate-300 space-y-2 text-left font-mono">
-                    <span className="text-emerald-400 font-bold block">🟢 Estado de Inspección IA:</span>
-                    <p>Dominio normalizado: {activeTab.url}</p>
-                    <p>Protocolo SSL: {activeTab.url.startsWith('https://') ? 'Seguro (HTTPS)' : 'HTTP Local'}</p>
-                    <p>Agente activo: {agentName} ({agentRole})</p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setRenderMode('iframe')}
-                      className="px-4 py-2.5 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-lg flex items-center gap-2 cursor-pointer"
-                    >
-                      <Monitor className="w-4 h-4" />
-                      <span>Cargar Página Web en Visor iFrame</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
-          </div>
-        )}
-
+          )}
+        </div>
       </div>
-
     </div>
   );
 };
