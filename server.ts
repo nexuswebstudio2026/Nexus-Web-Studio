@@ -309,6 +309,92 @@ app.post('/api/send-telegram', async (req, res) => {
   }
 });
 
+// API Endpoint for Universal Web Proxy (Bypasses X-Frame-Options & CSP to render any website in the embedded browser)
+app.get('/api/proxy-web', async (req, res) => {
+  try {
+    const rawUrl = req.query.url as string;
+    if (!rawUrl || !rawUrl.trim()) {
+      return res.status(400).send('<h3>Error: URL no proporcionada</h3>');
+    }
+
+    let targetUrl = rawUrl.trim();
+    if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+      targetUrl = 'https://' + targetUrl;
+    }
+
+    // Set browser headers for high compatibility
+    const response = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'es-ES,es;q=0.9,en-US;q=0.8,en;q=0.7',
+      },
+      redirect: 'follow',
+    });
+
+    const contentType = response.headers.get('content-type') || 'text/html';
+
+    if (contentType.includes('text/html')) {
+      let html = await response.text();
+      const originUrl = new URL(response.url || targetUrl);
+      const originBase = originUrl.origin;
+
+      // Inject base href tag so relative images, scripts, and CSS load from origin
+      const baseTag = `<base href="${originBase}/" target="_self" />`;
+
+      if (html.includes('<head>')) {
+        html = html.replace('<head>', `<head>${baseTag}`);
+      } else if (html.includes('<HEAD>')) {
+        html = html.replace('<HEAD>', `<HEAD>${baseTag}`);
+      } else {
+        html = `${baseTag}${html}`;
+      }
+
+      // Strip frame restrictions in response headers
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.removeHeader('X-Frame-Options');
+      res.removeHeader('Content-Security-Policy');
+      return res.status(200).send(html);
+    } else {
+      const buffer = await response.arrayBuffer();
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      return res.status(200).send(Buffer.from(buffer));
+    }
+  } catch (err: any) {
+    console.error('[Proxy Web Error]:', err?.message);
+    const fallbackUrl = (req.query.url as string) || 'https://google.com';
+    return res.status(200).send(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Navegación Web Directa</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+            .card { background: #1e293b; padding: 32px; border-radius: 20px; border: 1px solid #334155; max-width: 540px; text-align: center; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); }
+            h2 { color: #38bdf8; margin-top: 0; font-size: 20px; }
+            p { color: #94a3b8; font-size: 14px; line-height: 1.6; }
+            .url-badge { background: #0f172a; color: #4ade80; padding: 8px 14px; border-radius: 10px; font-family: monospace; font-size: 13px; word-break: break-all; display: inline-block; margin: 12px 0; border: 1px solid #1e293b; }
+            .btn { display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #2563eb, #7c3aed); color: white; border: none; padding: 12px 24px; border-radius: 12px; font-weight: bold; font-size: 14px; text-decoration: none; cursor: pointer; transition: all 0.2s; margin-top: 16px; }
+            .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h2>🌐 Navegación hacia la URL solicitada</h2>
+            <div class="url-badge">${fallbackUrl}</div>
+            <p>El sitio web requiere conexión directa por restricciones de red o seguridad. Puedes abrir la navegación interactiva completa con un solo clic:</p>
+            <a href="${fallbackUrl.startsWith('http') ? fallbackUrl : 'https://' + fallbackUrl}" target="_blank" class="btn">
+              <span>Abrir ${fallbackUrl} en Nueva Pestaña 🚀</span>
+            </a>
+          </div>
+        </body>
+      </html>
+    `);
+  }
+});
 
 async function startServer() {
   const vite = await createViteServer({
