@@ -382,6 +382,13 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
             >
               <RotateCw className="w-4 h-4" />
             </button>
+            <button
+              onClick={() => handleNavigate(resolvedInitialUrl)}
+              className="p-1.5 rounded-full hover:bg-slate-700 text-slate-300"
+              title="Inicio"
+            >
+              <Home className="w-4 h-4" />
+            </button>
 
             <form
               onSubmit={(e) => {
@@ -398,6 +405,13 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
                 placeholder="Escribe una URL (ej. www.facebook.com o https://google.com)..."
                 className="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
               />
+              <button
+                type="submit"
+                className="text-slate-400 hover:text-white"
+                title="Ir a URL"
+              >
+                <Search className="w-3.5 h-3.5" />
+              </button>
               <button
                 type="button"
                 onClick={copyCurrentUrl}
@@ -446,6 +460,13 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
               >
                 <RotateCw className="w-4 h-4" />
               </button>
+              <button
+                onClick={() => handleNavigate(resolvedInitialUrl)}
+                className="p-1.5 rounded-lg hover:bg-[#36363a] text-slate-300"
+                title="Inicio"
+              >
+                <Home className="w-4 h-4" />
+              </button>
             </div>
 
             <form
@@ -462,6 +483,9 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
                 onChange={(e) => setUrlInput(e.target.value)}
                 className="w-full bg-transparent text-xs text-white text-center focus:text-left focus:outline-none font-mono"
               />
+              <button type="submit" className="text-slate-400 hover:text-white" title="Ir a URL">
+                <Search className="w-3.5 h-3.5" />
+              </button>
               <button type="button" onClick={copyCurrentUrl} className="text-slate-400 hover:text-white">
                 {copiedUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
@@ -511,6 +535,13 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
             <button onClick={() => handleNavigate(activeTab.url)} className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300">
               <RotateCw className="w-4 h-4" />
             </button>
+            <button
+              onClick={() => handleNavigate(resolvedInitialUrl)}
+              className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300"
+              title="Inicio"
+            >
+              <Home className="w-4 h-4" />
+            </button>
 
             <form
               onSubmit={(e) => {
@@ -526,6 +557,9 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
                 onChange={(e) => setUrlInput(e.target.value)}
                 className="w-full bg-transparent text-xs text-white focus:outline-none font-mono"
               />
+              <button type="submit" className="text-slate-400 hover:text-white" title="Ir a URL">
+                <Search className="w-3.5 h-3.5" />
+              </button>
               <button type="button" onClick={copyCurrentUrl} className="text-slate-400 hover:text-white">
                 {copiedUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
@@ -571,6 +605,13 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
             <button onClick={() => handleNavigate(activeTab.url)} className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300">
               <RotateCw className="w-4 h-4" />
             </button>
+            <button
+              onClick={() => handleNavigate(resolvedInitialUrl)}
+              className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300"
+              title="Inicio"
+            >
+              <Home className="w-4 h-4" />
+            </button>
 
             <form
               onSubmit={(e) => {
@@ -586,6 +627,9 @@ export const WebBrowserView: React.FC<WebBrowserViewProps> = ({
                 onChange={(e) => setUrlInput(e.target.value)}
                 className="w-full bg-transparent text-xs text-white focus:outline-none font-mono"
               />
+              <button type="submit" className="text-slate-400 hover:text-white" title="Ir a URL">
+                <Search className="w-3.5 h-3.5" />
+              </button>
               <button type="button" onClick={copyCurrentUrl} className="text-slate-400 hover:text-white">
                 {copiedUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
               </button>

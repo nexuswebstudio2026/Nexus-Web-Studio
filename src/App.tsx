@@ -50,6 +50,8 @@ import {
   UserCheck,
   LayoutDashboard,
   LogOut,
+  Menu,
+  X,
 } from 'lucide-react';
 
 import {
@@ -60,6 +62,9 @@ import {
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './lib/firebase';
 import { seedFirestoreDatabase } from './lib/seedDatabase';
+import { getModuleTitle } from './utils/navigation';
+
+const OFFICIAL_NEXUS_LOGO = '/assets/aistudio/768420689_122100971391434882_47020785483964272_n__1__df72d03a.jpg';
 
 export default function App() {
   const [currentUserId, setCurrentUserId] = useState<string>(() => {
@@ -285,6 +290,23 @@ export default function App() {
   const rawRole = activeModuleOverride || currentUser.role;
   const activeModuleRole: RoleId = ['admin', 'ai_agents', 'inbox', 'firebase_crud', 'settings'].includes(rawRole) ? rawRole : 'admin';
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+
+  // Close mobile sidebar on Escape key
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isMobileNavOpen) {
+        setIsMobileNavOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isMobileNavOpen]);
+
+  // Automatically close mobile sidebar when changing modules or views
+  React.useEffect(() => {
+    setIsMobileNavOpen(false);
+  }, [currentView, activeModuleRole]);
 
   // Sidebar position offset & alignment states
   const [sidebarVerticalOffset, setSidebarVerticalOffset] = useState<number>(() => {
@@ -585,36 +607,67 @@ export default function App() {
 
         {/* VIEW 3: Management System Panel with Left/Right Sidebar Nav & RBAC */}
         {currentView === 'management_system' && (
-          <div className={`flex flex-col ${sidebarSide === 'right' ? 'md:flex-row-reverse' : 'md:flex-row'} gap-6 items-start`}>
+          <div className="w-full space-y-4">
             
-            {/* Sidebar Navigation with Position Controls */}
-            <SidebarNav
-              activeModuleRole={activeModuleRole}
-              setActiveModuleRole={(roleId) => setActiveModuleOverride(roleId)}
-              currentUser={currentUser}
-              onOpenPermissionMatrix={() => setIsPermissionModalOpen(true)}
-              onLogout={handleLogout}
-              onGoToLanding={() => {
-                setCurrentView('agency_site');
-                setPublicSection('inicio');
-                navigateRoute('agency_site', 'inicio');
-              }}
-              onCloseNav={() => {
-                setCurrentView('agency_site');
-                setPublicSection('inicio');
-                navigateRoute('agency_site', 'inicio');
-              }}
-              onOpenFirebaseCrud={() => setActiveModuleOverride('firebase_crud')}
-              verticalOffset={sidebarVerticalOffset}
-              onAdjustOffset={handleAdjustSidebarOffset}
-              sidebarSide={sidebarSide}
-              onToggleSide={handleToggleSidebarSide}
-              isCollapsed={isSidebarCollapsed}
-              setIsCollapsed={setIsSidebarCollapsed}
-            />
+            {/* Mobile Navigation Header Bar (Only visible on mobile screens < md) */}
+            <div className="md:hidden bg-slate-900/95 border border-slate-800 rounded-2xl p-3 shadow-xl backdrop-blur-md flex items-center justify-between gap-3 sticky top-2 z-20">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl overflow-hidden border border-cyan-500/50 bg-white p-0.5 shrink-0 shadow-md">
+                  <img src={OFFICIAL_NEXUS_LOGO} alt="Nexus Logo" className="w-full h-full object-contain rounded-lg" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-xs font-black tracking-wider uppercase text-white block truncate">NEXUS PANEL</span>
+                  <span className="text-[11px] text-cyan-400 font-bold flex items-center gap-1.5 truncate">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0 animate-pulse" />
+                    <span>{getModuleTitle(activeModuleRole)}</span>
+                  </span>
+                </div>
+              </div>
 
-            {/* Main Content Viewport */}
-            <div className="flex-1 min-w-0 w-full space-y-6">
+              <button
+                type="button"
+                onClick={() => setIsMobileNavOpen(true)}
+                className="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-purple-900/40 cursor-pointer transition-all active:scale-95 border border-purple-400/30"
+                aria-label="Abrir menú de navegación"
+                title="Abrir menú de navegación lateral"
+              >
+                <Menu className="w-4 h-4" />
+                <span>Menú</span>
+              </button>
+            </div>
+
+            <div className={`flex flex-col ${sidebarSide === 'right' ? 'md:flex-row-reverse' : 'md:flex-row'} gap-6 items-start w-full`}>
+              
+              {/* Sidebar Navigation with Position Controls & Responsive Mobile Drawer */}
+              <SidebarNav
+                activeModuleRole={activeModuleRole}
+                setActiveModuleRole={(roleId) => setActiveModuleOverride(roleId)}
+                currentUser={currentUser}
+                onOpenPermissionMatrix={() => setIsPermissionModalOpen(true)}
+                onLogout={handleLogout}
+                onGoToLanding={() => {
+                  setCurrentView('agency_site');
+                  setPublicSection('inicio');
+                  navigateRoute('agency_site', 'inicio');
+                }}
+                onCloseNav={() => {
+                  setCurrentView('agency_site');
+                  setPublicSection('inicio');
+                  navigateRoute('agency_site', 'inicio');
+                }}
+                onOpenFirebaseCrud={() => setActiveModuleOverride('firebase_crud')}
+                verticalOffset={sidebarVerticalOffset}
+                onAdjustOffset={handleAdjustSidebarOffset}
+                sidebarSide={sidebarSide}
+                onToggleSide={handleToggleSidebarSide}
+                isCollapsed={isSidebarCollapsed}
+                setIsCollapsed={setIsSidebarCollapsed}
+                isMobileOpen={isMobileNavOpen}
+                onCloseMobile={() => setIsMobileNavOpen(false)}
+              />
+
+              {/* Main Content Viewport */}
+              <div className="flex-1 min-w-0 w-full space-y-6">
               
               {/* Top Workspace Header Bar */}
               <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 shadow-xl">
@@ -771,6 +824,7 @@ export default function App() {
 
             </div>
           </div>
+        </div>
         )}
 
       </main>
