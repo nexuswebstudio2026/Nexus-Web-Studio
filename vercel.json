@@ -1,8 +1,16 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
-    {
-      "source": "/((?!api/.*).*)",
-      "destination": "/index.html"
-    }
+    { "source": "/api/:path*", "destination": "/api/app?__path=/:path*" },
+    { "source": "/dashboard", "destination": "/index.html" },
+    { "source": "/dashboard/:path*", "destination": "/index.html" },
+    { "source": "/vida-academica", "destination": "/index.html" },
+    { "source": "/vida-personal", "destination": "/index.html" },
+    { "source": "/vida-laboral", "destination": "/index.html" },
+    { "source": "/vida-politica", "destination": "/index.html" },
+    { "source": "/proyectos", "destination": "/index.html" },
+    { "source": "/historia", "destination": "/index.html" },
+    { "source": "/iniciar-sesion", "destination": "/index.html" },
+    { "source": "/panel", "destination": "/index.html" }
   ]
 }

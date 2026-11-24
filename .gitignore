@@ -6,3 +6,10 @@ coverage/
 *.log
 .env*
 !.env.example
+data/
+!server/data/
+!server/data/seed-data.ts
+*.pem
+*.key
+*service-account*.json
+.playwright-cli/

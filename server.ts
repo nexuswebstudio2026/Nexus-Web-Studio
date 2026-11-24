@@ -1,412 +1,661 @@
+import 'dotenv/config';
+import crypto from 'node:crypto';
 import express from 'express';
-import { createServer as createViteServer } from 'vite';
-import nodemailer from 'nodemailer';
-import dotenv from 'dotenv';
+import fs from 'node:fs';
+import path from 'node:path';
+import { AuditorService } from './server/ai/auditor.service.js';
+import { AiAgentsService } from './server/ai/agents.service.js';
+import { AutomationsService } from './server/ai/automations.service.js';
+import { AuthService, type AuthenticatedRequest } from './server/auth/auth.service.js';
+import { loadServerConfig } from './server/config/env.js';
+import { SheetsRepositoryService } from './server/sheets/sheets.service.js';
+import type { AcademicRecord, AcademicRecordType, EmploymentRecord, EmploymentRecordType, EmploymentSector, ProjectRecord, ProjectRecordType, RecordVisibility } from './shared/types';
+import {
+  validatePoliticalRecordInput,
+  validateSiteSettingsInput,
+} from './server/validation/records.js';
 
-dotenv.config();
+const academicRecordTypes: AcademicRecordType[] = [
+  'Primaria', 'Bachillerato', 'Pregrado', 'Posgrado', 'Curso', 'Seminario', 'Diplomado', 'Área de conocimiento', 'Otro',
+];
 
-const app = express();
-const PORT = Number(process.env.PORT) || 3000;
-
-app.use(express.json());
-
-// API Endpoint for Contact Form Email Dispatch via Gmail SMTP
-app.post('/api/contact', async (req, res) => {
-  console.log('[API /api/contact] Solicitud recibida:', req.body);
-
-  try {
-    const { name, email, phone, projectType, message } = req.body;
-
-    if (!name || !email || !message) {
-      return res.status(400).json({ error: 'Nombre, correo y mensaje son obligatorios.' });
-    }
-
-    const smtpUser = (process.env.SMTP_USER || 'nexuswebstudio2026@gmail.com').trim();
-    const smtpPass = (process.env.SMTP_PASS || 'souqnarnxoueoiyz').replace(/\s+/g, '').trim();
-    const targetEmail = (process.env.SMTP_TO || 'nexuswebstudio2026@gmail.com').trim();
-
-    console.log(`[SMTP Intent] Intentando enviar correo desde ${name} (${email}) hacia ${targetEmail}`);
-
-    // Create Gmail-optimized Nodemailer Transporter using SSL port 465
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: Number(process.env.SMTP_PORT) || 465,
-      secure: true, // SSL port 465
-      auth: {
-        user: smtpUser,
-        pass: smtpPass,
-      },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 10000,
-    });
-
-    // Configure 'from' with the Client's Name so Gmail Recibidos shows the Client's Name as the Sender
-    const mailOptions = {
-      from: `"${name}" <${smtpUser}>`,
-      replyTo: `"${name}" <${email}>`,
-      to: targetEmail,
-      subject: `📩 Mensaje de ${name} (${email}) - ${projectType}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; background-color: #0f172a; color: #f8fafc; padding: 28px; border-radius: 20px; max-width: 600px; margin: 0 auto; border: 1px solid #334155;">
-          <div style="text-align: center; border-bottom: 1px solid #334155; padding-bottom: 16px; margin-bottom: 20px;">
-            <h1 style="color: #818cf8; margin: 0; font-size: 22px;">Nexus Web Studio</h1>
-            <p style="color: #38bdf8; margin: 4px 0 0 0; font-size: 13px;">Nuevo Requerimiento de Proyecto Recibido</p>
-          </div>
-
-          <div style="background-color: #1e293b; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
-            <p style="margin: 6px 0;"><strong>Remitente / Cliente:</strong> <span style="color: #ffffff; font-weight: bold; font-size: 15px;">${name}</span></p>
-            <p style="margin: 6px 0;"><strong>Correo del Cliente:</strong> <a href="mailto:${email}" style="color: #38bdf8; font-weight: bold;">${email}</a></p>
-            <p style="margin: 6px 0;"><strong>Teléfono / WhatsApp:</strong> <span style="color: #4ade80;">${phone || 'No especificado'}</span></p>
-            <p style="margin: 6px 0;"><strong>Tipo de Proyecto:</strong> <span style="color: #a855f7; font-weight: bold;">${projectType}</span></p>
-          </div>
-
-          <div style="background-color: #020617; padding: 20px; border-radius: 12px; border: 1px solid #1e293b;">
-            <p style="margin: 0 0 8px 0; color: #94a3b8; font-size: 12px; font-weight: bold; text-transform: uppercase;">Descripción / Requerimientos:</p>
-            <p style="margin: 0; color: #f1f5f9; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${message}</p>
-          </div>
-
-          <div style="text-align: center; margin-top: 24px; padding-top: 16px; border-top: 1px solid #334155; font-size: 11px; color: #64748b;">
-            <p style="margin: 0;">Nexus Web Studio © 2026 | Línea Directa WhatsApp: +57 3043470984</p>
-            <p style="margin: 4px 0 0 0; color: #38bdf8;">💡 Haz clic en "Responder" en Gmail para escribirle directamente a ${name} (${email})</p>
-          </div>
-        </div>
-      `,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log('[GMAIL SMTP EXITOSO] Remitente mostrado:', name, 'MessageId:', info.messageId);
-
-    return res.status(200).json({
-      success: true,
-      message: `Correo despachado mostrando a ${name} como remitente.`,
-      messageId: info.messageId,
-    });
-  } catch (err: any) {
-    console.error('❌ Error al enviar correo vía Gmail SMTP:', err);
-    return res.status(500).json({
-      error: 'Ocurrió un error al despachar el correo SMTP.',
-      details: err?.message || String(err),
-    });
+function validateAcademicInput(raw: Record<string, unknown>): Omit<AcademicRecord, 'id'> | null {
+  const clean = (value: unknown, max = 2000) => typeof value === 'string'
+    ? value.replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, max)
+    : '';
+  const type = clean(raw.type, 80) as AcademicRecordType;
+  const title = clean(raw.title, 180);
+  const status = clean(raw.status, 100);
+  const detail = clean(raw.detail, 2500);
+  const supportUrl = clean(raw.support_url, 500);
+  const sortOrder = Number(raw.sort_order);
+  const rawVisibility = clean(raw.visibility, 20).toLowerCase();
+  if (!academicRecordTypes.includes(type) || title.length < 2 || !status || detail.length < 5 ||
+      !Number.isFinite(sortOrder) || sortOrder < 0 || sortOrder > 9999 ||
+      !['publica', 'privada'].includes(rawVisibility)) return null;
+  if (supportUrl) {
+    try {
+      const parsed = new URL(supportUrl);
+      if (parsed.protocol !== 'https:' || !['drive.google.com', 'docs.google.com'].includes(parsed.hostname)) return null;
+    } catch { return null; }
   }
-});
-
-// API Endpoint for AI Agent Skill Execution with Gemini SDK (@google/genai)
-app.post('/api/gemini-agent', async (req, res) => {
-  try {
-    const {
-      agentName,
-      role,
-      customSkillName,
-      description,
-      trainedInstructions,
-      baseUrl,
-      capabilities,
-      sessionContext,
-      model,
-      prompt,
-      history,
-      isAutonomousRun,
-    } = req.body;
-
-    const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
-    const {
-      resolveGeminiModelId,
-      buildAgentSystemInstruction,
-      buildGeminiChatContents,
-    } = await import('./src/utils/agentConfig');
-    const resolvedModelId = resolveGeminiModelId(model);
-
-    const systemInstruction = buildAgentSystemInstruction({
-      agentName,
-      role,
-      customSkillName,
-      description,
-      trainedInstructions,
-      baseUrl,
-      capabilities,
-      sessionContext,
-    });
-
-    const userPromptText =
-      (typeof prompt === 'string' && prompt.trim()) ||
-      `Ejecuta tu habilidad entrenada "${customSkillName}" y entrega un reporte técnico detallado.`;
-
-    const multiTurnContents =
-      Array.isArray(history) && history.length > 0
-        ? buildGeminiChatContents(history, userPromptText)
-        : userPromptText;
-
-    if (apiKey && apiKey.trim() !== '' && !apiKey.includes('YOUR_API_KEY') && !apiKey.includes('placeholder')) {
-      try {
-        const { GoogleGenAI } = await import('@google/genai');
-        const ai = new GoogleGenAI({
-          apiKey,
-          httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
-        });
-
-        const response = await ai.models.generateContent({
-          model: resolvedModelId,
-          contents: multiTurnContents,
-          config: {
-            systemInstruction,
-          },
-        });
-
-        const textOutput = response.text || 'Ejecución completada satisfactoriamente.';
-        return res.status(200).json({
-          success: true,
-          output: textOutput,
-          agentName,
-          customSkillName,
-          baseUrl: baseUrl || undefined,
-          source: resolvedModelId,
-        });
-      } catch (geminiError: any) {
-        // Smoothly fall through to nexus-skill-engine fallback without logging noisy API key error payloads
-        console.log(`[Gemini SDK Info] Fallback generator active for agent: ${agentName}`);
-      }
-    }
-
-    // Dynamic Contextual Response Generator (when running offline/local without Gemini API key)
-    const timestamp = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const urlContextLine = baseUrl ? `\nURL Base vinculada: ${baseUrl}` : '';
-    const extraCtxLine = sessionContext ? `\nContexto adicional activo: ${sessionContext}` : '';
-    const priorUserTurns = Array.isArray(history)
-      ? history
-          .filter((m: any) => m && m.sender === 'user' && typeof m.text === 'string' && m.text.trim())
-          .map((m: any) => m.text.trim())
-      : [];
-    const memoryLine =
-      priorUserTurns.length > 0
-        ? `\nMemoria de conversación (${priorUserTurns.length} mensaje(s) previo(s)): "${priorUserTurns[priorUserTurns.length - 1]}"`
-        : '';
-
-    let fallbackText = '';
-
-    if (isAutonomousRun) {
-      fallbackText = `[24/7 AUTÓNOMO - ${timestamp}] Agente ${agentName} ejecutó exitosamente la habilidad "${customSkillName}".${urlContextLine} Criterio aplicado: "${(trainedInstructions || '').slice(0, 80)}...".`;
-    } else {
-      fallbackText = `[Agente ${agentName}]: Aplicando instrucciones configuradas para tu solicitud: "${userPromptText}".${urlContextLine}${extraCtxLine}${memoryLine}\n\nSistema de Prompts activo: ${trainedInstructions}\n\nResultado: Respuesta procesada y lista para operar sobre el entorno web configurado.`;
-    }
-
-    return res.status(200).json({
-      success: true,
-      output: fallbackText,
-      agentName,
-      customSkillName,
-      baseUrl: baseUrl || undefined,
-      source: 'nexus-skill-engine',
-    });
-  } catch (err: any) {
-    console.error('Error executing AI Agent endpoint:', err);
-    return res.status(500).json({ error: 'Error al ejecutar el agente de IA', details: err?.message });
-  }
-});
-
-// API Endpoint for Receiving External Project Webhooks
-app.post('/api/webhooks/projects', async (req, res) => {
-  try {
-    const { eventType, project, source } = req.body;
-    if (!project || !project.name) {
-      return res.status(400).json({ error: 'Payload de proyecto no válido. Se requiere un objeto "project" con propiedad "name".' });
-    }
-
-    const event = {
-      id: `wh_ext_${Date.now()}`,
-      eventType: eventType || 'project.created',
-      projectId: project.id || `prj_${Date.now()}`,
-      projectName: project.name,
-      clientName: project.clientName || 'Cliente Externo',
-      status: 'dispatched',
-      summary: `Webhook recibido (${source || 'API Externa'}): Proyecto "${project.name}" ${eventType === 'project.created' ? 'creado con éxito' : 'modificado'}.`,
-      timestamp: `${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES')}`
-    };
-
-    console.log('[API WEBHOOK RECIBIDO]', event);
-
-    return res.status(200).json({
-      success: true,
-      message: 'Evento webhook de proyecto procesado e informado a los Agentes de IA.',
-      event,
-    });
-  } catch (err: any) {
-    console.error('Error processing project webhook:', err);
-    return res.status(500).json({ error: 'Error procesando webhook de proyecto', details: err?.message });
-  }
-});
-
-// API Endpoint for WhatsApp Dispatch Proxy
-app.post('/api/send-whatsapp', async (req, res) => {
-  try {
-    const { recipientPhone, senderName, senderEmail, senderPhone, projectType, content, urgencyReason } = req.body;
-    const targetPhone = (recipientPhone || process.env.VITE_ADMIN_WHATSAPP_PHONE || process.env.WHATSAPP_PHONE_NUMBER || '+573043470984').trim();
-
-    const formattedMessage = `🚨 *[ALERTA AGENTE IA - MENSAJE URGENTE]*
-📌 *Cliente:* ${senderName} (${senderEmail})
-📞 *Teléfono:* ${senderPhone || 'No registrado'}
-💼 *Requerimiento:* ${projectType}
-⚠️ *Motivo:* ${urgencyReason || 'Mensaje prioritario identificado en Bandeja de Entrada de Firebase'}
-
-💬 *Mensaje:*
-"${content}"
-
-⏰ *Fecha:* ${new Date().toLocaleString('es-ES')}`;
-
-    console.log(`[WHATSAPP DISPATCH PROXY] Alerta despachada hacia ${targetPhone}:\n${formattedMessage}`);
-    return res.status(200).json({
-      success: true,
-      provider: 'server_proxy',
-      recipient: targetPhone,
-      formattedMessage,
-      message: `Notificación de alerta despachada exitosamente a ${targetPhone}`
-    });
-  } catch (err: any) {
-    console.error('Error in WhatsApp server endpoint:', err);
-    return res.status(500).json({ error: 'Error al enviar notificación WhatsApp', details: err?.message });
-  }
-});
-
-// API Endpoint for Instant Telegram Bot Push Notifications (100% Free & Always Active)
-app.post('/api/send-telegram', async (req, res) => {
-  try {
-    const { message, botToken, chatId } = req.body;
-    const token = botToken || process.env.TELEGRAM_BOT_TOKEN || process.env.VITE_TELEGRAM_BOT_TOKEN;
-    const targetChat = chatId || process.env.TELEGRAM_CHAT_ID || process.env.VITE_TELEGRAM_CHAT_ID;
-
-    if (!token || !targetChat) {
-      return res.status(400).json({
-        error: 'Faltan parámetros de Telegram: TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID',
-      });
-    }
-
-    const tgRes = await fetch(`https://api.telegram.org/bot${token.trim()}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: targetChat.trim(),
-        text: message || '🚨 [ALERTA URGENTE NEXUS AGENTE IA] Mensaje de prueba de notificación en tiempo real.',
-        parse_mode: 'Markdown',
-      }),
-    });
-
-    const tgData = await tgRes.json();
-    if (tgRes.ok && tgData.ok) {
-      return res.status(200).json({
-        success: true,
-        provider: 'telegram',
-        message: 'Alerta push de Telegram enviada exitosamente en tiempo real.',
-      });
-    } else {
-      return res.status(400).json({
-        error: 'Error al enviar mensaje por Telegram API',
-        details: tgData?.description || 'Token o Chat ID no válido.',
-      });
-    }
-  } catch (err: any) {
-    console.error('Error in Telegram server endpoint:', err);
-    return res.status(500).json({ error: 'Error en servicio de Telegram', details: err?.message });
-  }
-});
-
-// API Endpoint for Universal Web Proxy (Bypasses X-Frame-Options & CSP to render any website in the embedded browser)
-app.get('/api/proxy-web', async (req, res) => {
-  try {
-    const rawUrl = req.query.url as string;
-    if (!rawUrl || !rawUrl.trim()) {
-      return res.status(400).send('<h3>Error: URL no proporcionada</h3>');
-    }
-
-    let targetUrl = rawUrl.trim();
-    if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
-      targetUrl = 'https://' + targetUrl;
-    }
-
-    // Set browser headers for high compatibility
-    const response = await fetch(targetUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Accept-Language': 'es-ES,es;q=0.9,en-US;q=0.8,en;q=0.7',
-      },
-      redirect: 'follow',
-    });
-
-    const contentType = response.headers.get('content-type') || 'text/html';
-
-    if (contentType.includes('text/html')) {
-      let html = await response.text();
-      const originUrl = new URL(response.url || targetUrl);
-      const originBase = originUrl.origin;
-
-      // Inject base href tag so relative images, scripts, and CSS load from origin
-      const baseTag = `<base href="${originBase}/" target="_self" />`;
-
-      if (html.includes('<head>')) {
-        html = html.replace('<head>', `<head>${baseTag}`);
-      } else if (html.includes('<HEAD>')) {
-        html = html.replace('<HEAD>', `<HEAD>${baseTag}`);
-      } else {
-        html = `${baseTag}${html}`;
-      }
-
-      // Strip frame restrictions in response headers
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.removeHeader('X-Frame-Options');
-      res.removeHeader('Content-Security-Policy');
-      return res.status(200).send(html);
-    } else {
-      const buffer = await response.arrayBuffer();
-      res.setHeader('Content-Type', contentType);
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      return res.status(200).send(Buffer.from(buffer));
-    }
-  } catch (err: any) {
-    console.error('[Proxy Web Error]:', err?.message);
-    const fallbackUrl = (req.query.url as string) || 'https://google.com';
-    return res.status(200).send(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Navegación Web Directa</title>
-          <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
-            .card { background: #1e293b; padding: 32px; border-radius: 20px; border: 1px solid #334155; max-width: 540px; text-align: center; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); }
-            h2 { color: #38bdf8; margin-top: 0; font-size: 20px; }
-            p { color: #94a3b8; font-size: 14px; line-height: 1.6; }
-            .url-badge { background: #0f172a; color: #4ade80; padding: 8px 14px; border-radius: 10px; font-family: monospace; font-size: 13px; word-break: break-all; display: inline-block; margin: 12px 0; border: 1px solid #1e293b; }
-            .btn { display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #2563eb, #7c3aed); color: white; border: none; padding: 12px 24px; border-radius: 12px; font-weight: bold; font-size: 14px; text-decoration: none; cursor: pointer; transition: all 0.2s; margin-top: 16px; }
-            .btn:hover { opacity: 0.9; transform: translateY(-1px); }
-          </style>
-        </head>
-        <body>
-          <div class="card">
-            <h2>🌐 Navegación hacia la URL solicitada</h2>
-            <div class="url-badge">${fallbackUrl}</div>
-            <p>El sitio web requiere conexión directa por restricciones de red o seguridad. Puedes abrir la navegación interactiva completa con un solo clic:</p>
-            <a href="${fallbackUrl.startsWith('http') ? fallbackUrl : 'https://' + fallbackUrl}" target="_blank" class="btn">
-              <span>Abrir ${fallbackUrl} en Nueva Pestaña 🚀</span>
-            </a>
-          </div>
-        </body>
-      </html>
-    `);
-  }
-});
-
-async function startServer() {
-  const vite = await createViteServer({
-    server: { middlewareMode: true },
-    appType: 'spa',
-  });
-
-  app.use(vite.middlewares);
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server listening on http://localhost:${PORT}`);
-  });
+  return {
+    type, title, institution: clean(raw.institution, 180),
+    chronology_start: clean(raw.chronology_start, 120), chronology_end: clean(raw.chronology_end, 120),
+    status, detail, support_url: supportUrl, visibility: rawVisibility as RecordVisibility, sort_order: Math.round(sortOrder),
+  };
 }
 
-startServer();
+const employmentRecordTypes: EmploymentRecordType[] = [
+  'Empleado', 'Independiente', 'Contratista', 'Cargo público', 'Emprendimiento', 'Otro',
+];
+const employmentSectors: EmploymentSector[] = ['Público', 'Privado', 'Comunitario', 'Sin clasificar'];
+
+function validateEmploymentInput(raw: Record<string, unknown>): Omit<EmploymentRecord, 'id'> | null {
+  const clean = (value: unknown, max = 2000) => typeof value === 'string'
+    ? value.replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, max)
+    : '';
+  const type = clean(raw.type, 80) as EmploymentRecordType;
+  const sector = clean(raw.sector, 40) as EmploymentSector;
+  const title = clean(raw.title, 180);
+  const status = clean(raw.status, 100);
+  const detail = clean(raw.detail, 2500);
+  const sortOrder = Number(raw.sort_order);
+  const rawVisibility = clean(raw.visibility, 20).toLowerCase();
+  if (!employmentRecordTypes.includes(type) || !employmentSectors.includes(sector) || title.length < 2 || !status || detail.length < 5 ||
+      !Number.isFinite(sortOrder) || sortOrder < 0 || sortOrder > 9999 ||
+      !['publica', 'privada'].includes(rawVisibility)) return null;
+  return {
+    type, sector, title, organization: clean(raw.organization, 180),
+    chronology_start: clean(raw.chronology_start, 120), chronology_end: clean(raw.chronology_end, 120),
+    status, detail, visibility: rawVisibility as RecordVisibility, sort_order: Math.round(sortOrder),
+  };
+}
+
+const projectRecordTypes: ProjectRecordType[] = [
+  'Junta de Acción Comunal', 'Nexus Web Studio', 'Campaña política como edil', 'Otro',
+];
+
+function validateProjectInput(raw: Record<string, unknown>): Omit<ProjectRecord, 'id'> | null {
+  const clean = (value: unknown, max = 2000) => typeof value === 'string'
+    ? value.replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, max)
+    : '';
+  const type = clean(raw.type, 80) as ProjectRecordType;
+  const title = clean(raw.title, 180);
+  const status = clean(raw.status, 100);
+  const detail = clean(raw.detail, 2500);
+  const sortOrder = Number(raw.sort_order);
+  const rawVisibility = clean(raw.visibility, 20).toLowerCase();
+  if (!projectRecordTypes.includes(type) || title.length < 2 || !status || detail.length < 5 ||
+      !Number.isFinite(sortOrder) || sortOrder < 0 || sortOrder > 9999 ||
+      !['publica', 'privada'].includes(rawVisibility)) return null;
+  return {
+    type, title, organization: clean(raw.organization, 180),
+    chronology_start: clean(raw.chronology_start, 120), chronology_end: clean(raw.chronology_end, 120),
+    status, detail, visibility: rawVisibility as RecordVisibility, sort_order: Math.round(sortOrder),
+  };
+}
+
+export async function createApp(options: { includeFrontend?: boolean } = {}) {
+  const includeFrontend = options.includeFrontend ?? true;
+  const config = loadServerConfig();
+  const authService = new AuthService(config);
+  const sheetsService = new SheetsRepositoryService(config);
+  const auditorService = new AuditorService(config);
+  const aiAgentsService = new AiAgentsService(config);
+  const automationsService = new AutomationsService(config, sheetsService, auditorService);
+
+  const envAdmin = authService.getEnvAdminForSheetSync();
+  if (envAdmin && sheetsService.isSheetsConfigured()) {
+    const rawPhotoUrl = sheetsService.getSettings().authorizedPhotoUrl || '/profile-photo.png';
+    let resolvedPhotoUrl = rawPhotoUrl;
+    try {
+      resolvedPhotoUrl = new URL(rawPhotoUrl, config.appUrl).toString();
+    } catch {
+      resolvedPhotoUrl = rawPhotoUrl;
+    }
+    void sheetsService
+      .syncAdminUserToUsersSheet(envAdmin.username, envAdmin.passwordHash, resolvedPhotoUrl)
+      .catch(() => {
+        // Non-fatal on startup; sheet status reports connectivity errors if any
+      });
+  }
+
+  const app = express();
+  app.set('trust proxy', 1);
+  app.disable('x-powered-by');
+  app.use(express.json({ limit: '7mb' }));
+
+  // Basic security headers
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    next();
+  });
+
+  // Origin check on mutating API calls
+  app.use('/api', authService.requireSameOriginOnWrite);
+
+  // Health endpoint
+  app.get('/api/health', (_req, res) => {
+    res.json({ ok: true, service: 'camilo-vidal-web' });
+  });
+
+  // Public data endpoints (ONLY visibility === 'publica')
+  app.get('/api/public/content', async (_req, res) => {
+    try {
+      const [records, settings] = await Promise.all([
+        sheetsService.getPublicRecords(),
+        sheetsService.getPublicSettings(),
+      ]);
+      res.json({ records, settings });
+    } catch {
+      res.status(500).json({ error: 'No fue posible cargar la información pública.' });
+    }
+  });
+
+  app.get('/api/public/academic-records', async (_req, res) => {
+    try {
+      res.json({ records: await sheetsService.getAcademicRecords(true) });
+    } catch {
+      res.status(503).json({ error: 'No fue posible cargar la vida académica desde Google Sheets.' });
+    }
+  });
+
+  app.get('/api/public/employment-records', async (_req, res) => {
+    try {
+      res.json({ records: await sheetsService.getEmploymentRecords(true) });
+    } catch {
+      res.status(503).json({ error: 'No fue posible cargar la vida laboral desde Google Sheets.' });
+    }
+  });
+
+  app.get('/api/public/project-records', async (_req, res) => {
+    try {
+      res.json({ records: await sheetsService.getProjectRecords(true) });
+    } catch {
+      res.status(503).json({ error: 'No fue posible cargar los proyectos desde Google Sheets.' });
+    }
+  });
+
+  app.get('/api/public/community-managements', async (_req, res) => {
+    try {
+      res.json({ records: await sheetsService.getCommunityManagementRecords(true) });
+    } catch (error) {
+      res.status(503).json({
+        error: error instanceof Error ? error.message : 'No fue posible cargar las gestiones desde Google Sheets.',
+      });
+    }
+  });
+
+  // Auth endpoints
+  app.get('/api/auth/session', (req, res) => {
+    res.json(authService.getSessionState(req));
+  });
+
+  app.post('/api/auth/recovery/request', (req, res) => {
+    const result = authService.createLocalPasswordRecovery(req.socket.remoteAddress);
+    if (!result.ok || !result.code || !result.username) {
+      res.status(403).json({ error: result.error || 'No se pudo iniciar la recuperación.' });
+      return;
+    }
+    res.status(201).json({ code: result.code, username: result.username, expiresInSeconds: 600 });
+  });
+
+  app.post('/api/auth/recovery/reset', (req, res) => {
+    const code = typeof req.body?.code === 'string' ? req.body.code : '';
+    const newPassword = typeof req.body?.newPassword === 'string' ? req.body.newPassword : '';
+    const result = authService.resetLocalPassword(req.socket.remoteAddress, code, newPassword);
+    if (!result.ok || !result.username) {
+      res.status(400).json({ error: result.error || 'No se pudo restablecer la contraseña.' });
+      return;
+    }
+    res.json({ ok: true, username: result.username });
+  });
+
+  app.post('/api/auth/setup', (req, res) => {
+    const username = typeof req.body?.username === 'string' ? req.body.username : '';
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    const result = authService.setupInitialAdmin(username, password);
+    if (!result.ok || !result.username) {
+      res.status(400).json({ error: result.error || 'No se pudo configurar el acceso inicial.' });
+      return;
+    }
+    const sessionToken = authService.issueSessionCookie(req, res, result.username);
+    res.status(201).json({
+      authenticated: true,
+      username: result.username,
+      needsInitialSetup: false,
+      envConfigured: false,
+      sessionToken,
+    });
+  });
+
+  app.post('/api/auth/login', async (req, res) => {
+    const username = typeof req.body?.username === 'string' ? req.body.username : '';
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    const result = await authService.verifyCredentialsWithSheet(
+      username,
+      password,
+      sheetsService.verifyUserInUsersSheet.bind(sheetsService)
+    );
+    if (!result.ok || !result.username) {
+      res.status(401).json({ error: result.error || 'Credenciales inválidas.' });
+      return;
+    }
+    const sessionToken = authService.issueSessionCookie(req, res, result.username);
+    res.json({
+      authenticated: true,
+      username: result.username,
+      needsInitialSetup: false,
+      envConfigured: authService.isEnvConfigured(),
+      sessionToken,
+    });
+  });
+
+  app.post('/api/auth/logout', (req, res) => {
+    authService.clearSessionCookie(req, res);
+    res.json({ ok: true });
+  });
+
+  // Protected Admin API routes
+  const adminRouter = express.Router();
+  adminRouter.use(authService.requireAuth);
+
+  adminRouter.get('/records', async (req, res) => {
+    const forceSync = req.query.sync === '1';
+    try {
+      const records = await sheetsService.getAllRecords(forceSync);
+      const sheetsStatus = sheetsService.getSheetsStatus();
+      const settings = await sheetsService.getPublicSettings();
+      res.json({ records, sheetsStatus, settings });
+    } catch {
+      res.status(500).json({ error: 'No fue posible consultar los registros administrativos.' });
+    }
+  });
+
+  adminRouter.get('/academic-records', async (_req, res) => {
+    try {
+      res.json({ records: await sheetsService.getAcademicRecords(false) });
+    } catch (error) {
+      res.status(503).json({ error: error instanceof Error ? error.message : 'No fue posible consultar los registros académicos.' });
+    }
+  });
+
+  adminRouter.post('/academic-records', async (req, res) => {
+    const input = validateAcademicInput(req.body || {});
+    if (!input) { res.status(400).json({ error: 'Revisa los campos del registro académico.' }); return; }
+    try { res.status(201).json({ record: await sheetsService.createAcademicRecord(input) }); }
+    catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'No se pudo crear el registro académico.' }); }
+  });
+
+  adminRouter.put('/academic-records/:id', async (req, res) => {
+    const input = validateAcademicInput(req.body || {});
+    if (!input) { res.status(400).json({ error: 'Revisa los campos del registro académico.' }); return; }
+    try {
+      const record = await sheetsService.updateAcademicRecord(req.params.id, input);
+      if (!record) { res.status(404).json({ error: 'Registro académico no encontrado.' }); return; }
+      res.json({ record });
+    } catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'No se pudo actualizar el registro académico.' }); }
+  });
+
+  adminRouter.delete('/academic-records/:id', async (req, res) => {
+    try {
+      const deleted = await sheetsService.deleteAcademicRecord(req.params.id);
+      if (!deleted) { res.status(404).json({ error: 'Registro académico no encontrado.' }); return; }
+      res.json({ ok: true });
+    } catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'No se pudo eliminar el registro académico.' }); }
+  });
+
+  adminRouter.get('/employment-records', async (_req, res) => {
+    try {
+      res.json({ records: await sheetsService.getEmploymentRecords(false) });
+    } catch (error) {
+      res.status(503).json({ error: error instanceof Error ? error.message : 'No fue posible consultar los registros laborales.' });
+    }
+  });
+
+  adminRouter.post('/employment-records', async (req, res) => {
+    const input = validateEmploymentInput(req.body || {});
+    if (!input) { res.status(400).json({ error: 'Revisa los campos del registro laboral.' }); return; }
+    try { res.status(201).json({ record: await sheetsService.createEmploymentRecord(input) }); }
+    catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'No se pudo crear el registro laboral.' }); }
+  });
+
+  adminRouter.put('/employment-records/:id', async (req, res) => {
+    const input = validateEmploymentInput(req.body || {});
+    if (!input) { res.status(400).json({ error: 'Revisa los campos del registro laboral.' }); return; }
+    try {
+      const record = await sheetsService.updateEmploymentRecord(req.params.id, input);
+      if (!record) { res.status(404).json({ error: 'Registro laboral no encontrado.' }); return; }
+      res.json({ record });
+    } catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'No se pudo actualizar el registro laboral.' }); }
+  });
+
+  adminRouter.delete('/employment-records/:id', async (req, res) => {
+    try {
+      const deleted = await sheetsService.deleteEmploymentRecord(req.params.id);
+      if (!deleted) { res.status(404).json({ error: 'Registro laboral no encontrado.' }); return; }
+      res.json({ ok: true });
+    } catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'No se pudo eliminar el registro laboral.' }); }
+  });
+
+  adminRouter.get('/project-records', async (_req, res) => {
+    try {
+      res.json({ records: await sheetsService.getProjectRecords(false) });
+    } catch (error) {
+      res.status(503).json({ error: error instanceof Error ? error.message : 'No fue posible consultar los proyectos.' });
+    }
+  });
+
+  adminRouter.post('/project-records', async (req, res) => {
+    const input = validateProjectInput(req.body || {});
+    if (!input) { res.status(400).json({ error: 'Revisa los campos del proyecto.' }); return; }
+    try { res.status(201).json({ record: await sheetsService.createProjectRecord(input) }); }
+    catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'No se pudo crear el proyecto.' }); }
+  });
+
+  adminRouter.put('/project-records/:id', async (req, res) => {
+    const input = validateProjectInput(req.body || {});
+    if (!input) { res.status(400).json({ error: 'Revisa los campos del proyecto.' }); return; }
+    try {
+      const record = await sheetsService.updateProjectRecord(req.params.id, input);
+      if (!record) { res.status(404).json({ error: 'Proyecto no encontrado.' }); return; }
+      res.json({ record });
+    } catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'No se pudo actualizar el proyecto.' }); }
+  });
+
+  adminRouter.delete('/project-records/:id', async (req, res) => {
+    try {
+      const deleted = await sheetsService.deleteProjectRecord(req.params.id);
+      if (!deleted) { res.status(404).json({ error: 'Proyecto no encontrado.' }); return; }
+      res.json({ ok: true });
+    } catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'No se pudo eliminar el proyecto.' }); }
+  });
+
+  adminRouter.get('/sheets/tabs', async (_req, res) => {
+    try {
+      const tabs = await sheetsService.listSpreadsheetTabs();
+      res.json({ tabs });
+    } catch (error) {
+      res.status(503).json({ error: error instanceof Error ? error.message : 'No fue posible consultar las hojas.' });
+    }
+  });
+
+  adminRouter.get('/sheets/tab', async (req, res) => {
+    const title = typeof req.query.name === 'string' ? req.query.name : '';
+    if (!title || title.length > 100) {
+      res.status(400).json({ error: 'Selecciona una pestaña válida de Google Sheets.' });
+      return;
+    }
+    try {
+      const table = await sheetsService.readSpreadsheetTab(title);
+      res.json({ title, ...table });
+    } catch (error) {
+      res.status(503).json({ error: error instanceof Error ? error.message : 'No fue posible leer la pestaña.' });
+    }
+  });
+
+  adminRouter.post('/profile-photo', async (req: AuthenticatedRequest, res) => {
+    const rawDataUrl = typeof req.body?.dataUrl === 'string' ? req.body.dataUrl : '';
+    const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/i.exec(rawDataUrl);
+    if (!match) {
+      res.status(400).json({ error: 'Selecciona una imagen JPG, PNG o WebP válida.' });
+      return;
+    }
+
+    const mimeType = match[1].toLowerCase();
+    const image = Buffer.from(match[2], 'base64');
+    if (!image.length || image.length > 5 * 1024 * 1024) {
+      res.status(413).json({ error: 'La foto debe pesar como máximo 5 MB.' });
+      return;
+    }
+
+    const isJpeg = mimeType === 'image/jpeg' && image.length >= 3 && image[0] === 0xff && image[1] === 0xd8 && image[2] === 0xff;
+    const isPng = mimeType === 'image/png' && image.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+    const isWebp = mimeType === 'image/webp' && image.length >= 12 && image.toString('ascii', 0, 4) === 'RIFF' && image.toString('ascii', 8, 12) === 'WEBP';
+    if (!isJpeg && !isPng && !isWebp) {
+      res.status(400).json({ error: 'El contenido del archivo no coincide con una imagen JPG, PNG o WebP.' });
+      return;
+    }
+
+    const extension = mimeType === 'image/jpeg' ? 'jpg' : mimeType === 'image/png' ? 'png' : 'webp';
+    const uploadsDir = path.join(config.dataDir, 'uploads');
+    fs.mkdirSync(uploadsDir, { recursive: true });
+    const filename = `profile-${crypto.randomUUID()}.${extension}`;
+    const photoUrl = `${config.appUrl.replace(/\/+$/, '')}/uploads/${filename}`;
+    const currentSettings = sheetsService.getSettings();
+
+    try {
+      fs.writeFileSync(path.join(uploadsDir, filename), image, { flag: 'wx', mode: 0o644 });
+      const { settings: savedSettings } = await sheetsService.updateSettings({
+        ...currentSettings,
+        authorizedPhotoUrl: photoUrl,
+      });
+      const sheetsWarning = await sheetsService.updateProfilePhotoUrlInInformationSheet(photoUrl);
+      if (req.adminUser) {
+        await sheetsService.updateUserProfileUrlInUsersSheet(req.adminUser, photoUrl).catch(() => undefined);
+      }
+
+      let oldUploadPath = '';
+      try {
+        oldUploadPath = new URL(currentSettings.authorizedPhotoUrl, config.appUrl).pathname;
+      } catch {
+        oldUploadPath = '';
+      }
+      const oldFile = /^\/uploads\/profile-[0-9a-f-]+\.(?:jpg|png|webp)$/i.exec(oldUploadPath);
+      if (oldFile) {
+        const oldPath = path.join(uploadsDir, path.basename(oldUploadPath));
+        if (oldPath !== path.join(uploadsDir, filename) && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      }
+
+      res.status(201).json({ settings: savedSettings, sheetsWarning });
+    } catch {
+      const savedPath = path.join(uploadsDir, filename);
+      if (fs.existsSync(savedPath)) fs.unlinkSync(savedPath);
+      res.status(500).json({ error: 'No se pudo guardar la fotografía de perfil.' });
+    }
+  });
+
+  adminRouter.post('/records', async (req, res) => {
+    const validation = validatePoliticalRecordInput(req.body || {});
+    if (!validation.ok || !validation.data) {
+      res.status(400).json({ error: 'Validación fallida.', fields: validation.errors });
+      return;
+    }
+    try {
+      const created = await sheetsService.createRecord(validation.data);
+      res.status(201).json(created);
+    } catch {
+      res.status(500).json({ error: 'No se pudo crear el registro.' });
+    }
+  });
+
+  adminRouter.put('/records/:id', async (req, res) => {
+    const validation = validatePoliticalRecordInput(req.body || {});
+    if (!validation.ok || !validation.data) {
+      res.status(400).json({ error: 'Validación fallida.', fields: validation.errors });
+      return;
+    }
+    try {
+      const updated = await sheetsService.updateRecord(req.params.id, validation.data);
+      if (!updated.record) {
+        res.status(404).json({ error: 'Registro no encontrado.' });
+        return;
+      }
+      res.json(updated);
+    } catch {
+      res.status(500).json({ error: 'No se pudo actualizar el registro.' });
+    }
+  });
+
+  adminRouter.delete('/records/:id', async (req, res) => {
+    try {
+      const result = await sheetsService.deleteRecord(req.params.id);
+      if (!result.deleted) {
+        res.status(404).json({ error: 'Registro no encontrado.' });
+        return;
+      }
+      res.json(result);
+    } catch {
+      res.status(500).json({ error: 'No se pudo eliminar el registro.' });
+    }
+  });
+
+  adminRouter.put('/settings', async (req, res) => {
+    const validation = validateSiteSettingsInput(req.body || {});
+    if (!validation.ok || !validation.data) {
+      res.status(400).json({ error: 'Configuración inválida.', fields: validation.errors });
+      return;
+    }
+    const { settings: saved, sheetsWarning } = await sheetsService.updateSettings(validation.data);
+    res.json({ settings: saved, sheetsWarning });
+  });
+
+  // AI Auditor routes
+  adminRouter.get('/ai/manifest', (_req, res) => {
+    res.json({
+      manifest: auditorService.getManifestPreview(),
+      reports: auditorService.listReports(),
+    });
+  });
+
+  adminRouter.post('/ai/audit', async (_req, res) => {
+    const result = await auditorService.runReadOnlyAudit();
+    if (!result.ok) {
+      res.status(502).json({ error: result.error });
+      return;
+    }
+    res.status(201).json({ report: result.report });
+  });
+
+  adminRouter.get('/ai/agents', (_req, res) => {
+    res.json({ agents: aiAgentsService.listAgents(), openAiAvailable: aiAgentsService.isProviderConfigured(), provider: 'OpenAI', model: aiAgentsService.getModel() });
+  });
+
+  adminRouter.post('/ai/agents', (req, res) => {
+    const agent = aiAgentsService.saveAgent({
+      name: String(req.body?.name || ''),
+      description: String(req.body?.description || ''),
+      instructions: String(req.body?.instructions || ''),
+      trainingMaterial: String(req.body?.trainingMaterial || ''),
+    });
+    if (!agent) { res.status(400).json({ error: 'Revisa el nombre, la descripción y las instrucciones del agente.' }); return; }
+    res.status(201).json({ agent });
+  });
+
+  adminRouter.put('/ai/agents/:id', (req, res) => {
+    const agent = aiAgentsService.saveAgent({
+      name: String(req.body?.name || ''),
+      description: String(req.body?.description || ''),
+      instructions: String(req.body?.instructions || ''),
+      trainingMaterial: String(req.body?.trainingMaterial || ''),
+    }, req.params.id);
+    if (!agent) { res.status(400).json({ error: 'No se encontró el agente o faltan datos requeridos.' }); return; }
+    res.json({ agent });
+  });
+
+  adminRouter.delete('/ai/agents/:id', (req, res) => {
+    if (!aiAgentsService.deleteAgent(req.params.id)) { res.status(404).json({ error: 'Agente no encontrado.' }); return; }
+    res.json({ ok: true });
+  });
+
+  adminRouter.post('/ai/agents/:id/run', async (req, res) => {
+    try {
+      const result = await aiAgentsService.runAgent(req.params.id, String(req.body?.task || ''));
+      res.json(result);
+    } catch (error) {
+      res.status(503).json({ error: error instanceof Error ? error.message : 'No se pudo ejecutar el agente.' });
+    }
+  });
+
+  adminRouter.post('/ai/agents/:id/apply', (req, res) => {
+    const proposalId = typeof req.body?.proposalId === 'string' ? req.body.proposalId : '';
+    if (!proposalId) { res.status(400).json({ error: 'Selecciona una propuesta de código válida.' }); return; }
+    const result = aiAgentsService.applyCodeProposal(req.params.id, proposalId);
+    if (!result.ok) { res.status(400).json({ error: result.error || 'No se pudo aplicar la propuesta.' }); return; }
+    res.json({ ok: true, files: result.files || [] });
+  });
+
+  // Automations routes
+  adminRouter.get('/automations', (_req, res) => {
+    res.json({
+      tasks: automationsService.listTasks(),
+      runtimeNotice:
+        'Las tareas programadas se ejecutan únicamente mientras el servidor de la aplicación permanezca activo en ejecución. No se ejecutan con el equipo apagado salvo despliegue continuo en la nube.',
+    });
+  });
+
+  adminRouter.post('/automations', (req, res) => {
+    const result = automationsService.createTask({
+      name: String(req.body?.name || ''),
+      type: req.body?.type,
+      intervalMinutes: Number(req.body?.intervalMinutes),
+      timezone: String(req.body?.timezone || 'America/Bogota'),
+    });
+    if (!result.ok || !result.task) {
+      res.status(400).json({ error: result.error });
+      return;
+    }
+    res.status(201).json({ task: result.task });
+  });
+
+  adminRouter.post('/automations/:id/toggle', (req, res) => {
+    const updated = automationsService.togglePause(req.params.id);
+    if (!updated) {
+      res.status(404).json({ error: 'Automatización no encontrada.' });
+      return;
+    }
+    res.json({ task: updated });
+  });
+
+  adminRouter.post('/automations/:id/run', async (req, res) => {
+    const result = await automationsService.executeTask(req.params.id);
+    if (!result.task) {
+      res.status(404).json({ error: result.error || 'Automatización no encontrada.' });
+      return;
+    }
+    res.status(result.ok ? 200 : 502).json(result);
+  });
+
+  adminRouter.delete('/automations/:id', (req, res) => {
+    const deleted = automationsService.deleteTask(req.params.id);
+    if (!deleted) {
+      res.status(404).json({ error: 'Automatización no encontrada.' });
+      return;
+    }
+    res.json({ ok: true });
+  });
+
+  app.use('/api/admin', adminRouter);
+
+  const uploadsDir = path.join(config.dataDir, 'uploads');
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  app.use('/uploads', express.static(uploadsDir, { immutable: true, maxAge: '1d' }));
+
+  // Vite/static serving is for the local server. Vercel serves the built SPA
+  // separately and invokes this Express app through its /api function.
+  if (includeFrontend) {
+    if (!config.isProd) {
+      const { createServer: createViteServer } = await import('vite');
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+    } else {
+      const distDir = path.resolve(process.cwd(), 'dist');
+      app.use(express.static(distDir));
+      app.get('*', (_req, res) => {
+        const indexFile = path.join(distDir, 'index.html');
+        if (fs.existsSync(indexFile)) {
+          res.sendFile(indexFile);
+        } else {
+          res.status(404).send('Compila el frontend con npm run build antes de iniciar en producción.');
+        }
+      });
+    }
+  }
+
+  return app;
+}
